@@ -15,19 +15,20 @@ if not exist "settings.gradle.kts" (
   goto :fail
 )
 
-rem ---------- 1. Tim JDK (uu tien JDK di kem Android Studio) ----------
-set "JDK="
-if exist "%ProgramFiles%\Android\Android Studio\jbr\bin\java.exe" set "JDK=%ProgramFiles%\Android\Android Studio\jbr"
-if not defined JDK if exist "%LOCALAPPDATA%\Programs\Android Studio\jbr\bin\java.exe" set "JDK=%LOCALAPPDATA%\Programs\Android Studio\jbr"
-if not defined JDK if exist "%ProgramFiles%\Android\Android Studio Preview\jbr\bin\java.exe" set "JDK=%ProgramFiles%\Android\Android Studio Preview\jbr"
-if not defined JDK if defined JAVA_HOME if exist "%JAVA_HOME%\bin\java.exe" set "JDK=%JAVA_HOME%"
-if not defined JDK (
-  echo [LOI] Khong tim thay JDK. Hay cai Android Studio ^(co kem JDK^) tai developer.android.com/studio
+rem ---------- 1. JDK 17 rieng cho viec build (Android Studio moi dung JDK 25, Gradle chua ho tro) ----------
+if exist ".tools\jdk17\bin\java.exe" goto :jdk_ok
+echo [..] Dang tai JDK 17 ^(chi lan dau, khoang 190 MB^)...
+if not exist ".tools" mkdir ".tools"
+if exist ".tools\jdktmp" rmdir /s /q ".tools\jdktmp"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse' -OutFile '.tools\jdk17.zip'; Expand-Archive -Force '.tools\jdk17.zip' '.tools\jdktmp'; $d = Get-ChildItem '.tools\jdktmp' -Directory | Select-Object -First 1; Move-Item $d.FullName '.tools\jdk17'; Remove-Item '.tools\jdk17.zip'; Remove-Item '.tools\jdktmp' -Recurse -Force"
+if not exist ".tools\jdk17\bin\java.exe" (
+  echo [LOI] Tai JDK 17 that bai. Kiem tra mang roi chay lai.
   goto :fail
 )
-set "JAVA_HOME=%JDK%"
+:jdk_ok
+set "JAVA_HOME=%~dp0.tools\jdk17"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
-echo [OK] JDK: %JAVA_HOME%
+echo [OK] JDK 17: %JAVA_HOME%
 
 rem ---------- 2. Tim Android SDK ----------
 set "SDK="
@@ -74,9 +75,10 @@ echo [OK] Gradle: %GRADLE%
 
 rem ---------- 5. Build ----------
 echo.
-echo [..] Dang build APK. Dung tat cua so nay...
+echo [..] Dang build APK, mat 10-20 phut lan dau. Man hinh dung im la binh thuong, DUNG TAT cua so nay.
+echo     (tien trinh duoc ghi vao build.log)
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { & '%GRADLE%' assembleRelease --console=plain 2>&1 | Tee-Object -FilePath 'build.log'; exit $LASTEXITCODE }"
+call "%GRADLE%" assembleRelease --console=plain > build.log 2>&1
 if errorlevel 1 goto :fail_build
 
 set "APK=app\build\outputs\apk\release\app-release.apk"
@@ -97,8 +99,11 @@ exit /b 0
 :fail_build
 echo.
 echo ==================================================
-echo   BUILD THAT BAI. Loi day du nam trong file build.log
-echo   cung thu muc nay. Hay gui build.log cho Claude.
+echo   BUILD THAT BAI. 40 dong cuoi cua build.log:
+echo ==================================================
+powershell -NoProfile -Command "Get-Content 'build.log' -Tail 40"
+echo ==================================================
+echo   Hay gui file build.log (cung thu muc nay) cho Claude.
 echo ==================================================
 pause
 exit /b 1

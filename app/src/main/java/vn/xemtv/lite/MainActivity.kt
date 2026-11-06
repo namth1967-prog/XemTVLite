@@ -63,7 +63,6 @@ private fun App(vm: MainViewModel = viewModel()) {
         HomeScreen(
             ui = ui,
             shown = shown,
-            onQuery = vm::setQuery,
             onGroup = vm::setGroup,
             onFav = vm::toggleFav,
             onReload = vm::load,

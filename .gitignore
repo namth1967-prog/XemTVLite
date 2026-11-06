@@ -3,3 +3,8 @@
 build/
 local.properties
 .idea/
+.tools/
+build.log
+XemTVLite.apk
+local.properties
+.kotlin/

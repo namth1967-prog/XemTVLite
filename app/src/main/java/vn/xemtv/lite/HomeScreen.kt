@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
@@ -50,7 +51,6 @@ private fun tfColors() = TextFieldDefaults.colors(
 fun HomeScreen(
     ui: UiState,
     shown: List<Channel>,
-    onQuery: (String) -> Unit,
     onGroup: (String) -> Unit,
     onFav: (Channel) -> Unit,
     onReload: () -> Unit,
@@ -84,14 +84,7 @@ fun HomeScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Xem TV Lite v$ver", fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
-            TextField(
-                value = ui.query,
-                onValueChange = onQuery,
-                singleLine = true,
-                placeholder = { Text("Tìm kênh…") },
-                colors = tfColors(),
-                modifier = Modifier.weight(1f),
-            )
+            Spacer(Modifier.weight(1f))
             Pill("Tải lại", false, onClick = onReload)
             Pill("Cài đặt", false) { showSettings = true }
         }
@@ -145,6 +138,7 @@ private fun Pill(
     selected: Boolean,
     enabled: Boolean = true,
     textColor: Color = White,
+    small: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -162,8 +156,8 @@ private fun Pill(
                 }
             )
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp)
-    ) { Text(text, fontSize = 18.sp, color = if (enabled) textColor else Muted.copy(alpha = 0.5f), maxLines = 1) }
+            .padding(horizontal = if (small) 14.dp else 18.dp, vertical = if (small) 6.dp else 10.dp)
+    ) { Text(text, fontSize = if (small) 15.sp else 18.sp, color = if (enabled) textColor else Muted.copy(alpha = 0.5f), maxLines = 1) }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -199,6 +193,14 @@ private fun ChannelCard(c: Channel, fav: Boolean, onClick: () -> Unit, onLong: (
 }
 
 @Composable
+private fun SettingRow(title: String, content: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, Modifier.weight(1f), color = White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        content()
+    }
+}
+
+@Composable
 private fun SettingsDialog(
     ui: UiState,
     onDismiss: () -> Unit,
@@ -216,69 +218,67 @@ private fun SettingsDialog(
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     val scanning = ui.scanTotal > 0
+    val divider = Muted.copy(alpha = 0.3f)
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxWidth(0.92f),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         containerColor = Color(0xFF151C2E),
         title = { Text("Cài đặt", color = White) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Kiểm tra kênh", color = White, fontSize = 17.sp)
-                Text(
-                    if (scanning) "Đang kiểm tra ${ui.scanDone}/${ui.scanTotal} kênh…"
-                    else "App chỉ hiện kênh đã kiểm tra và phát được (kết quả giữ 6 giờ, sau đó tự kiểm tra lại). Đang hiện ${ui.alive.size}/${ui.all.size} kênh.",
-                    fontSize = 14.sp, color = Muted,
-                )
-                Pill("Kiểm tra lại tất cả kênh", false, enabled = !scanning, onClick = onScan)
-                HorizontalDivider(color = Muted.copy(alpha = 0.4f))
-                Text("Nguồn kênh", color = White, fontSize = 17.sp)
-                Text("Mỗi kênh có nhiều link; app tự chọn link chạy tốt nhất và tự đổi link khi lỗi.", fontSize = 14.sp, color = Muted)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Nguồn có sẵn: link gốc trong app + iptv-org + Free-TV", color = White, fontSize = 16.sp)
-                        Text(if (ui.builtIn) "Đang BẬT. Tự chia nhóm VTV / Địa phương / VTVcab / SCTV / HTVC" else "Đang TẮT (các kênh từ nguồn này đang ẩn)", color = Muted, fontSize = 12.sp)
-                    }
-                    Pill(if (ui.builtIn) "Tắt" else "Bật", false, onClick = onToggleBuiltIn)
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SettingRow(
+                    if (scanning) "Đang kiểm tra ${ui.scanDone}/${ui.scanTotal} · hiện ${ui.alive.size} kênh"
+                    else "Kênh đang hiện: ${ui.alive.size}/${ui.all.size}"
+                ) { Pill("Kiểm tra lại", false, enabled = !scanning, small = true, onClick = onScan) }
+                HorizontalDivider(color = divider)
+
+                SettingRow("Nguồn có sẵn (VTV, địa phương, VTVcab…)") {
+                    Pill(if (ui.builtIn) "BẬT" else "TẮT", ui.builtIn, small = true, onClick = onToggleBuiltIn)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Thể thao & Phim (kênh truyền hình quốc tế)", color = White, fontSize = 16.sp)
-                        Text(if (ui.extras) "Đang BẬT. Nhóm Thể thao và Phim từ iptv-org, Free-TV" else "Đang TẮT (nhóm Thể thao và Phim đang ẩn)", color = Muted, fontSize = 12.sp)
-                    }
-                    Pill(if (ui.extras) "Tắt" else "Bật", false, onClick = onToggleExtras)
+                SettingRow("Thể thao & Phim") {
+                    Pill(if (ui.extras) "BẬT" else "TẮT", ui.extras, small = true, onClick = onToggleExtras)
                 }
                 ui.sources.forEach { s ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Nhóm: ${s.name}", color = White, fontSize = 16.sp)
-                            Text(s.url, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Pill("Xóa", false, textColor = Color(0xFFFF8A8A)) { onRemove(s) }
+                    SettingRow("Nhóm: ${s.name}") {
+                        Pill("Xóa", false, textColor = Color(0xFFFF8A8A), small = true) { onRemove(s) }
                     }
                 }
-                HorizontalDivider(color = Muted.copy(alpha = 0.4f))
-                Text("Tự tìm nguồn trên GitHub", color = White, fontSize = 17.sp)
-                Text(
-                    ui.discoverMsg ?: "Tìm các file .m3u công khai có kênh Việt Nam để làm link dự phòng. Đã có ${ui.foundCount} nguồn tìm được.",
-                    fontSize = 14.sp, color = Muted,
-                )
-                TextField(tok, { tok = it; onToken(it) }, singleLine = true, label = { Text("Token GitHub (không bắt buộc)") },
-                    colors = tfColors(), modifier = Modifier.fillMaxWidth())
-                Text("Token đang lưu: " + if (ui.ghToken.isEmpty()) "(chưa có)" else "${ui.ghToken.length} ký tự", fontSize = 13.sp, color = Muted)
-                ui.tokenMsg?.let {
-                    Text(it, fontSize = 15.sp, color = if (it.startsWith("✔")) Color(0xFF7CE38B) else Color(0xFFFF9A9A))
+                HorizontalDivider(color = divider)
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextField(
+                        tok, { tok = it; onToken(it) }, singleLine = true,
+                        label = { Text("Token GitHub (không bắt buộc)") },
+                        colors = tfColors(), modifier = Modifier.weight(1f),
+                    )
+                    Pill("Kiểm tra", false, enabled = !ui.discovering, small = true, onClick = onCheckToken)
+                    val tm = ui.tokenMsg
+                    when {
+                        tm == null -> {}
+                        tm.startsWith("✔") -> Text("✔", color = Color(0xFF4CD964), fontSize = 30.sp)
+                        tm.startsWith("✘") -> Text("✘", color = Color(0xFFFF6B6B), fontSize = 30.sp)
+                        else -> Text("…", color = Muted, fontSize = 30.sp)
+                    }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Pill("Kiểm tra token", false, enabled = !ui.discovering, onClick = onCheckToken)
-                    Pill("Tìm nguồn mới", false, enabled = !ui.discovering, onClick = onDiscover)
-                    Pill("Xóa nguồn tìm được", false, enabled = !ui.discovering && ui.foundCount > 0, onClick = onClearFound)
+                ui.tokenMsg?.takeIf { it.startsWith("✘") }?.let { Text(it, fontSize = 13.sp, color = Color(0xFFFF9A9A)) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("Tìm nguồn mới", false, enabled = !ui.discovering, small = true, onClick = onDiscover)
+                    Pill("Xóa nguồn tìm được", false, enabled = !ui.discovering && ui.foundCount > 0, small = true, onClick = onClearFound)
+                    Text(
+                        ui.discoverMsg ?: "Đã có ${ui.foundCount} nguồn",
+                        Modifier.weight(1f), fontSize = 13.sp, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                HorizontalDivider(color = Muted.copy(alpha = 0.4f))
-                Text("Thêm nhóm mới", color = White, fontSize = 16.sp)
-                TextField(name, { name = it }, singleLine = true, label = { Text("Tên nhóm (VD: Phim lẻ)") },
-                    colors = tfColors(), modifier = Modifier.fillMaxWidth())
-                TextField(url, { url = it }, singleLine = true, label = { Text("Link M3U (https://…)") },
-                    colors = tfColors(), modifier = Modifier.fillMaxWidth())
-                Pill("Thêm nhóm", false, enabled = url.isNotBlank()) { onAdd(name, url); name = ""; url = "" }
+                HorizontalDivider(color = divider)
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextField(name, { name = it }, singleLine = true, label = { Text("Tên nhóm mới") },
+                        colors = tfColors(), modifier = Modifier.weight(1f))
+                    TextField(url, { url = it }, singleLine = true, label = { Text("Link M3U của nhóm") },
+                        colors = tfColors(), modifier = Modifier.weight(2f))
+                    Pill("Thêm", false, enabled = url.isNotBlank(), small = true) { onAdd(name, url); name = ""; url = "" }
+                }
             }
         },
         confirmButton = { Pill("Đóng", false, onClick = onDismiss) },
