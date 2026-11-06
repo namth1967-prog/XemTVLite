@@ -26,6 +26,7 @@ data class UiState(
     val error: String? = null,
     val sources: List<Source> = emptyList(),
     val builtIn: Boolean = true,
+    val extras: Boolean = true,
     val ok: Set<String> = emptySet(),      // link đã kiểm tra: chạy được
     val dead: Set<String> = emptySet(),    // link đã kiểm tra: chết
     val scanDone: Int = 0,
@@ -34,6 +35,7 @@ data class UiState(
     val foundCount: Int = 0,
     val discovering: Boolean = false,
     val discoverMsg: String? = null,
+    val tokenMsg: String? = null,
 ) {
     /** Chỉ kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được. */
     val alive: List<Channel> = all.filter { c -> c.urls.any { it in ok } }
@@ -46,7 +48,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val prober = Prober()
     private val _ui = MutableStateFlow(
         UiState(
-            favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, ok = repo.okStamps.fresh(), dead = repo.deadStamps.fresh(),
+            favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras, ok = repo.okStamps.fresh(), dead = repo.deadStamps.fresh(),
             ghToken = repo.ghToken, foundCount = repo.found.size,
         )
     )
@@ -84,7 +86,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun sourcesChanged() {
-        _ui.update { it.copy(sources = repo.sources, builtIn = repo.builtIn, all = emptyList(), group = "") }
+        _ui.update { it.copy(sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras, all = emptyList(), group = "") }
         load()
     }
 
@@ -99,6 +101,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun removeSource(s: Source) {
         repo.forget(s)
         repo.sources = repo.sources.filter { it != s }
+        sourcesChanged()
+    }
+
+    fun toggleExtras() {
+        repo.extras = !repo.extras
         sourcesChanged()
     }
 
@@ -182,7 +189,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ----- Tự tìm playlist trên GitHub -----
     fun setToken(t: String) {
         repo.ghToken = t
-        _ui.update { it.copy(ghToken = repo.ghToken) }
+        _ui.update { it.copy(ghToken = repo.ghToken, tokenMsg = null) }
+    }
+
+    fun checkToken() {
+        viewModelScope.launch {
+            _ui.update { it.copy(tokenMsg = "Đang kiểm tra token…") }
+            val msg = checkGithubToken(repo.ghToken)
+            _ui.update { it.copy(tokenMsg = msg) }
+        }
     }
 
     fun discover() {

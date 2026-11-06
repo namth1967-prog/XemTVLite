@@ -29,6 +29,8 @@ const val G_LOCAL = "Địa phương"
 const val G_VTVCAB = "VTVcab"
 const val G_SCTV = "SCTV"
 const val G_HTVC = "HTVC"
+const val G_SPORT = "Thể thao"
+const val G_MOVIE = "Phim"
 const val G_OTHER = "Khác"
 val VN_GROUPS = listOf(G_NATIONAL, G_LOCAL, G_VTVCAB, G_SCTV, G_HTVC)
 private val AUTO_GROUPS = VN_GROUPS + G_OTHER
@@ -40,12 +42,32 @@ private const val STAMP_TTL_MS = 6L * 3600 * 1000
 data class Channel(val id: String, val name: String, val logo: String, val group: String, val urls: List<String>)
 
 /** auto = true: nguồn có sẵn, tự chia nhóm VN. auto = false: link của bạn, cả danh sách vào 1 nhóm tên [name]. */
-data class Source(val name: String, val url: String, val auto: Boolean = false, val discovered: Boolean = false)
+data class Source(
+    val name: String, val url: String, val auto: Boolean = false, val discovered: Boolean = false,
+    val mode: String = "all",   // "sports": chỉ giữ kênh thể thao
+    val limit: Int = 0,          // > 0: chỉ lấy tối đa ngần này kênh đầu
+)
 
 private class Entry(val name: String, val logo: String, val url: String, val group: String = "")
 
 // Nguồn tự tìm được chỉ giữ kênh có dấu hiệu Việt Nam
 val KEEP_RE = Regex("vtv|htv|vtc|thvl|sctv|antv|vov|viet|truyen hinh|thuyet minh|long tieng|\\bvn\\b|\\.vn\\b|vietsub|vtvcab|k\\+|bong da viet")
+private const val FT = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists"
+private const val ORG = "https://iptv-org.github.io/iptv/categories"
+
+/** Kênh thể thao và kênh phim (truyền hình trực tiếp) từ danh sách công khai. */
+val EXTRA_SOURCES = listOf(
+    Source(G_SPORT, "$ORG/sports.m3u", limit = 150),
+    Source(G_SPORT, "$FT/playlist_uk.m3u8", mode = "sports"),
+    Source(G_SPORT, "$FT/playlist_france.m3u8", mode = "sports"),
+    Source(G_SPORT, "$FT/playlist_spain.m3u8", mode = "sports"),
+    Source(G_SPORT, "$FT/playlist_italy.m3u8", mode = "sports"),
+    Source(G_SPORT, "$FT/playlist_usa.m3u8", mode = "sports"),
+    Source(G_MOVIE, "$ORG/movies.m3u", limit = 60),
+    Source(G_MOVIE, "$ORG/series.m3u", limit = 40),
+)
+private val SPORT_RE = Regex("sport|the thao|bong da|football|soccer|\\bf1\\b|\\bk\\+|eurosport|canal\\+ (foot|live)|bein|espn|dazn")
+
 const val EXTRA_ASSET = "asset://live_extra.m3u"
 
 
@@ -178,6 +200,11 @@ class Repo(context: Context) {
         get() = prefs.getBoolean("builtin", true)
         set(v) { prefs.edit().putBoolean("builtin", v).apply() }
 
+    /** Bật/tắt nhóm Thể thao và Phim (kênh quốc tế). */
+    var extras: Boolean
+        get() = prefs.getBoolean("extras", true)
+        set(v) { prefs.edit().putBoolean("extras", v).apply() }
+
     /** Chỉ các nguồn do bạn thêm. */
     var sources: List<Source>
         get() {
@@ -222,6 +249,7 @@ class Repo(context: Context) {
         (if (builtIn) listOf(Source("Việt Nam", EXTRA_ASSET, true)) + BUILT_IN_URLS.map { Source("Việt Nam", it, true) }
          else emptyList()) +
             sources +
+            (if (extras) EXTRA_SOURCES else emptyList()) +
             found.map { Source("Tìm được", it, auto = true, discovered = true) }
 
     private fun file(s: Source) = File(dir, "src_${s.url.hashCode()}.m3u")
@@ -279,6 +307,8 @@ class Repo(context: Context) {
                             }
                             var list = parseM3u(body)
                             if (s.discovered) list = list.filter { KEEP_RE.containsMatchIn(fold(it.name + " " + it.group)) }
+                            if (s.mode == "sports") list = list.filter { SPORT_RE.containsMatchIn(fold(it.name + " " + it.group)) }
+                            if (s.limit > 0) list = list.take(s.limit)
                             if (list.isEmpty()) error("trống")
                             file(s).writeText(serialize(list))   // lưu bản đã lọc cho nhẹ
                             s to list

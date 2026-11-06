@@ -106,3 +106,29 @@ class Discovery(private val token: String) {
         return out
     }
 }
+
+/** Kiểm tra token GitHub bằng cách hỏi hạn mức (rate_limit). Trả về câu thông báo cho người dùng. */
+suspend fun checkGithubToken(token: String): String = withContext(Dispatchers.IO) {
+    try {
+        val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
+        val b = Request.Builder().url("https://api.github.com/rate_limit").header("Accept", "application/vnd.github+json")
+        if (token.isNotEmpty()) b.header("Authorization", "Bearer $token")
+        client.newCall(b.build()).execute().use { r ->
+            when {
+                r.code == 401 -> "✘ Token SAI hoặc đã hết hạn. Hãy kiểm tra lại từng ký tự."
+                !r.isSuccessful -> "✘ GitHub trả lỗi HTTP ${r.code}."
+                else -> {
+                    val res = JSONObject(r.body!!.string()).getJSONObject("resources")
+                    val search = res.getJSONObject("search")
+                    val core = res.getJSONObject("core")
+                    if (token.isEmpty())
+                        "Chưa nhập token: dùng chế độ không đăng nhập (tìm ${search.getInt("limit")} lượt/phút, gọi ${core.getInt("limit")} lượt/giờ)."
+                    else
+                        "✔ Token ĐÚNG. Tìm: còn ${search.getInt("remaining")}/${search.getInt("limit")} lượt/phút; gọi: còn ${core.getInt("remaining")}/${core.getInt("limit")} lượt/giờ."
+                }
+            }
+        }
+    } catch (e: Exception) {
+        "✘ Không kết nối được GitHub (${e.message ?: "lỗi mạng"})."
+    }
+}
