@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,10 +39,19 @@ data class UiState(
     val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
+    val notice: String? = null,                    // thông báo ngắn (VD: kết quả bấm Tải lại)
 ) {
-    /** Chỉ kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được, bỏ kênh đã xoá, áp dụng nhóm đã di chuyển. */
+    private val userGroups = sources.filter { !it.auto }.map { it.name }.toSet()
+
+    /**
+     * Kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được, bỏ kênh đã xoá, áp dụng nhóm đã di chuyển.
+     * Nhóm do bạn tự thêm thì hiện NGAY khi nạp xong (không chờ kiểm tra), chỉ ẩn khi mọi link đều đã kiểm tra là chết.
+     */
     val alive: List<Channel> = all
-        .filter { c -> c.id !in hidden && c.urls.any { it in ok } }
+        .filter { c ->
+            c.id !in hidden &&
+                (c.urls.any { it in ok } || (c.group in userGroups && c.urls.any { it !in dead }))
+        }
         .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
 }
 
@@ -67,25 +77,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val ui: StateFlow<UiState> = _ui.asStateFlow()
     private var scanJob: Job? = null
     private var discoverJob: Job? = null
+    private var noticeJob: Job? = null
+
+    /** Hiện thông báo ngắn ở màn hình chính, tự tắt sau 7 giây. */
+    private fun showNotice(msg: String) {
+        _ui.update { it.copy(notice = msg) }
+        noticeJob?.cancel()
+        noticeJob = viewModelScope.launch { delay(7_000); _ui.update { it.copy(notice = null) } }
+    }
 
     init { load() }
 
     private fun refreshHealth() = _ui.update { it.copy(ok = repo.health.ok(), dead = repo.health.dead()) }
 
-    fun load() {
+    /**
+     * [manual]: do người dùng bấm "Tải lại" -> có thông báo kết quả và thử lại cả các kênh đang chết.
+     * [onFetched]: gọi khi đã nạp xong toàn bộ danh sách (để báo số kênh/link mới).
+     */
+    fun load(manual: Boolean = false, onFetched: ((List<Channel>) -> Unit)? = null) {
         viewModelScope.launch {
+            val before = _ui.value.all.size
+            if (manual) showNotice("Đang tải lại danh sách nguồn…")
             _ui.update { it.copy(loading = true, error = null) }
             val cached = repo.cached()
             if (cached.isNotEmpty()) _ui.update { it.copy(all = cached) }
             try {
-                val fresh = repo.fetch()
+                val fresh = repo.fetch { core ->
+                    // Nguồn lõi xong: hiện ngay và bắt đầu kiểm tra, không chờ Thể thao/Phim/nguồn tự tìm
+                    _ui.update { it.copy(all = core, loading = false) }
+                    scan(ScanMode.NEW, autoFill = false)
+                }
                 _ui.update { it.copy(all = fresh, loading = false) }
+                if (manual) {
+                    val dc = (fresh.size - before).coerceAtLeast(0)
+                    showNotice("Đã tải lại: ${fresh.size} kênh trong danh sách" + (if (dc > 0) ", thêm $dc kênh mới" else "") + ". Đang thử lại các kênh chưa chạy được…")
+                }
+                onFetched?.invoke(fresh)
             } catch (e: Exception) {
+                if (manual) showNotice("Không tải lại được: ${e.message}")
                 _ui.update {
                     it.copy(loading = false, error = if (it.all.isEmpty()) "Lỗi: ${e.message}" else null)
                 }
             }
-            scan(ScanMode.NEW)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
+            scanJob?.join()      // đợi lượt kiểm tra nguồn lõi xong rồi mới kiểm tra phần còn lại
+            scan(if (manual) ScanMode.DEAD else ScanMode.NEW)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
         }
     }
 
@@ -167,25 +202,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val all = okU + unknown
         val pool = all.take(6)
         val res = prober.measure(pool)
-        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.fail(u) }
+        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.penalize(u) }
         h.save()
         refreshHealth()
         val live = pool.filter { (res[it] ?: -1) > 0 }.sortedByDescending { h.score(it) }
-        val unsure = pool.filter { (res[it] ?: -1) < 0 }
-        val failed = pool.filter { res[it] == 0 }
+        val unsure = pool.filter { res[it] == null }
+        val failed = pool.filter { res[it]?.let { v -> v <= 0 } == true }
         return live + unsure + all.drop(6) + failed + deadU
     }
 
     /** Kết quả khi đang xem: phát được thật -> xóa lỗi; lỗi 1 lần chưa loại, lỗi liên tiếp 2 lần mới coi là chết. */
     fun report(c: Channel, ok: Boolean, url: String?) {
         if (url == null) return
-        if (ok) repo.health.confirm(url) else repo.health.fail(url)
+        if (ok) repo.health.confirm(url) else repo.health.penalize(url)   // kênh không biến mất; chỉ link đó xuống cuối hàng
         repo.health.save()
         refreshHealth()
     }
 
     // ----- Kiểm tra kênh (chỉ hiện kênh chắc chắn sống; kết quả lưu mãi) -----
-    fun scan(mode: ScanMode = ScanMode.NEW) {
+    fun scan(mode: ScanMode = ScanMode.NEW, autoFill: Boolean = true) {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
             val h = repo.health
@@ -193,13 +228,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val chans = st.all.filter { it.id !in st.hidden }   // kênh đã xoá không cần kiểm tra
             val ok0 = h.ok()
             val dead0 = h.dead()
+            val mine = st.sources.filter { !it.auto }.map { it.name }.toSet()
             val targets = when (mode) {
                 ScanMode.ALL -> chans
                 ScanMode.DEAD -> chans.filter { c -> c.urls.none { it in ok0 } }
                 ScanMode.NEW -> chans.filter { c -> c.urls.none { it in ok0 } && !c.urls.all { it in dead0 } }
-            }
+            }.sortedBy { if (it.group in mine) 0 else 1 }     // nhóm bạn tự thêm được kiểm tra trước
             if (targets.isNotEmpty()) runScan(targets)
-            if (isActive) maybeAutoFill()
+            if (isActive && autoFill) maybeAutoFill()
         }
     }
 
@@ -222,14 +258,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 targets.forEach { c ->
                     launch(Dispatchers.IO) {
                         sem.withPermit {
-                            // Đo từng link của kênh, dừng khi đã có 3 link tốt (đủ để xếp hạng, đỡ tốn mạng)
+                            // Đo từng link của kênh, dừng khi đã có 2 link tốt (đủ để hiện kênh + 1 dự phòng; xếp hạng kỹ hơn lúc phát)
                             var good = 0
                             for (u in c.urls) {
                                 if (!isActive) return@withPermit
                                 var sc = prober.probe(u)
-                                if (sc == 0) sc = prober.probe(u)   // đo lại 1 lần để không loại oan link chập chờn
-                                if (sc > 0) { h.succeed(u, sc); good++; if (good >= 3) break }
-                                else if (sc == 0) h.kill(u)
+                                if (sc == 0) { delay(1_500); sc = prober.probe(u) }   // đo lại sau 1,5 s để không loại oan link chập chờn
+                                if (sc > 0) { h.succeed(u, sc); good++; if (good >= 2) break }
+                                else h.kill(u)
                             }
                             val d = done.incrementAndGet()
                             if (d % 3 == 0) push(false)
@@ -277,6 +313,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     discoverMsg = if (auto) "Có kênh chết: đang tự tìm nguồn bổ sung…" else "Đang tìm nguồn mới trên GitHub…",
                 )
             }
+            val beforeCh = _ui.value.all.size
+            val beforeLinks = _ui.value.all.sumOf { it.urls.size }
             val d = Discovery(repo.ghToken)
             val urls = try {
                 d.run { msg -> _ui.update { it.copy(discoverMsg = msg) } }
@@ -296,7 +334,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     discoverMsg = "Xong: tìm thấy ${urls.size} file, tổng ${merged.size} nguồn.$note Đang nạp lại danh sách…",
                 )
             }
-            load()
+            load { fresh ->
+                val dc = (fresh.size - beforeCh).coerceAtLeast(0)
+                val dl = (fresh.sumOf { it.urls.size } - beforeLinks).coerceAtLeast(0)
+                _ui.update {
+                    it.copy(discoverMsg = "Đã nạp thêm $dc kênh và $dl link mới. Số kênh hiện chỉ tăng khi link mới được kiểm tra là chạy được.")
+                }
+            }
         }
     }
 

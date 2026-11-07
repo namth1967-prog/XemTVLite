@@ -132,6 +132,10 @@ fun HomeScreen(
             item { Pill("★ Yêu thích", ui.group == FAV) { onGroup(FAV) } }
             items(groups) { g -> Pill("$g (${counts[g]})", ui.group == g) { onGroup(g) } }
         }
+        ui.notice?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, fontSize = 14.sp, color = Color(0xFFFFC857))
+        }
         if (ui.scanTotal > 0) {
             Spacer(Modifier.height(6.dp))
             Text("Đang kiểm tra kênh ${ui.scanDone}/${ui.scanTotal} · đang hiện ${ui.alive.size} kênh sống", fontSize = 14.sp, color = Muted)
@@ -358,7 +362,7 @@ private fun SettingsDialog(
     onClearFound: () -> Unit,
     onRestore: () -> Unit,
 ) {
-    var tok by remember { mutableStateOf(ui.ghToken) }
+    var showToken by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     val rDiscover = remember { FocusRequester() }
     val scanning = ui.scanTotal > 0
@@ -400,12 +404,11 @@ private fun SettingsDialog(
                 HorizontalDivider(color = divider)
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextField(
-                        tok, { tok = it; onToken(it) }, singleLine = true,
-                        label = { Text("Token GitHub (không bắt buộc)") },
-                        colors = tfColors(), modifier = Modifier.weight(1f).leaveOnDpad(),
-                        keyboardOptions = nextOptions, keyboardActions = nextActions(),
+                    Text(
+                        if (ui.ghToken.isBlank()) "Token GitHub (không bắt buộc): chưa nhập" else "Token GitHub: ••••" + ui.ghToken.takeLast(4),
+                        Modifier.weight(1f), fontSize = 15.sp, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
+                    Pill(if (ui.ghToken.isBlank()) "Nhập token…" else "Đổi token…", false, small = true) { showToken = true }
                     Pill("Kiểm tra", false, enabled = !ui.discovering, small = true,
                         modifier = Modifier.focusProperties { down = rDiscover }, onClick = onCheckToken)
                     val tm = ui.tokenMsg
@@ -436,6 +439,37 @@ private fun SettingsDialog(
         confirmButton = { Pill("Đóng", false, onClick = onDismiss) },
     )
     if (showAdd) AddGroupDialog({ showAdd = false }) { n, u -> onAdd(n, u); showAdd = false }
+    if (showToken) TokenDialog(ui.ghToken, { showToken = false }) { t -> onToken(t); showToken = false }
+}
+
+/** Hộp nhập token nằm sát mép trên màn hình (giống hộp "Thêm nhóm") để bàn phím ảo không che. */
+@Composable
+private fun TokenDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var tok by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val view = LocalView.current
+        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        Column(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF151C2E))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Token GitHub (không bắt buộc)", color = White, fontSize = 20.sp)
+            TextField(
+                tok, { tok = it }, singleLine = true, label = { Text("Dán token (ghp_… hoặc github_pat_…)") },
+                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(),
+                keyboardOptions = nextOptions, keyboardActions = nextActions(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Lưu", false, small = true) { onSave(tok.text.trim()) }
+                Pill("Hủy", false, small = true, onClick = onDismiss)
+            }
+        }
+    }
 }
 
 /** Hộp thoại nhập nhóm mới: đặt ở ĐỈNH màn hình để bàn phím ảo không che, kèm dấu ✔/✘ báo link đúng sai. */

@@ -244,6 +244,11 @@ class Health(private val prefs: android.content.SharedPreferences, private val k
     }
     /** Đang phát được thật: xóa lỗi, giữ điểm cũ. */
     fun confirm(url: String) { m[url] = Stat(maxOf(m[url]?.score ?: 0, 1), 0) }
+    /** Lỗi khi đang xem: chỉ trừ điểm để link đó xuống cuối hàng, KHÔNG đánh dấu chết (kênh không biến mất). */
+    fun penalize(url: String) {
+        val o = m[url] ?: return
+        if (o.score > 0) m[url] = Stat(maxOf(1, o.score / 2), o.fails)
+    }
     /** Lỗi 1 lần (khi đang xem hoặc đo nhanh). */
     fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1) }
     /** Đã đo lại chắc chắn là chết. */
@@ -261,8 +266,9 @@ class Repo(context: Context) {
     private val prefs = ctx.getSharedPreferences("xemtv", Context.MODE_PRIVATE)
     private val dir = ctx.filesDir
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(40, TimeUnit.SECONDS)
         .build()
 
     var builtIn: Boolean
@@ -369,12 +375,16 @@ class Repo(context: Context) {
 
     // ----- Tải & gộp -----
     // Thứ tự = thứ tự ưu tiên link: link gốc trong app -> danh sách công khai -> link của bạn -> nguồn tự tìm
-    private fun allSources(): List<Source> =
+    /** Nguồn lõi (có sẵn + nhóm do bạn thêm): tải xong là hiện kênh ngay, không chờ Thể thao/Phim/nguồn tự tìm. */
+    private fun coreSources(): List<Source> =
         (if (builtIn) listOf(Source("Việt Nam", EXTRA_ASSET, true)) + BUILT_IN_URLS.map { Source("Việt Nam", it, true) }
-         else emptyList()) +
-            sources +
-            (if (extras) EXTRA_SOURCES else emptyList()) +
+         else emptyList()) + sources
+
+    private fun lateSources(): List<Source> =
+        (if (extras) EXTRA_SOURCES else emptyList()) +
             found.map { Source("Tìm được", it, auto = true, discovered = true) }
+
+    private fun allSources(): List<Source> = coreSources() + lateSources()
 
     private fun file(s: Source) = File(dir, "src_${s.url.hashCode()}.m3u")
 
@@ -429,6 +439,52 @@ class Repo(context: Context) {
         return auto.sortedBy { natKey(it.name) } + user
     }
 
+    suspend fun cached(): List<Channel> = withContext(Dispatchers.IO) {
+        merge(allSources().map { s -> s to readCached(s) })
+    }
+
+    /** Tải tất cả nguồn (tối đa 8 cùng lúc). Nguồn nào lỗi thì dùng bản đã lưu. */
+    /** [onCore] được gọi ngay khi nguồn lõi tải xong (kèm danh sách kênh của riêng nguồn lõi) để hiện kênh sớm. */
+    suspend fun fetch(onCore: ((List<Channel>) -> Unit)? = null): List<Channel> = withContext(Dispatchers.IO) {
+        val core = coreSources()
+        val late = lateSources()
+        val sem = Semaphore(8)
+        val wk = wantedGroups().keys
+        val gone = java.util.concurrent.ConcurrentLinkedQueue<String>()   // nguồn tự tìm đã bị xóa (404/410)
+        coroutineScope {
+            suspend fun one(s: Source): Pair<Source, List<Entry>>? = sem.withPermit {
+                if (s.url == EXTRA_ASSET) return@withPermit (s to readCached(s)).takeIf { it.second.isNotEmpty() }
+                try {
+                    val req = Request.Builder().url(s.url).build()
+                    val body = client.newCall(req).execute().use { r ->
+                        if (!r.isSuccessful) error("HTTP ${r.code}")
+                        r.body?.string().orEmpty()
+                    }
+                    val list = filterFor(s, parseM3u(body), wk)
+                    if (list.isEmpty()) error("trống")
+                    file(s).writeText(serialize(list))   // lưu bản đã lọc cho nhẹ
+                    s to list
+                } catch (e: Exception) {
+                    val m = e.message.orEmpty()
+                    if (s.discovered && (m.startsWith("HTTP 404") || m.startsWith("HTTP 410"))) {
+                        gone.add(s.url); forget(s); null     // nguồn chết hẳn -> bỏ để tìm nguồn thay thế
+                    } else {
+                        val c = readCached(s)
+                        if (c.isNotEmpty()) s to c else null
+                    }
+                }
+            }
+            val coreD = core.map { async { one(it) } }
+            val lateD = late.map { async { one(it) } }
+            val coreRes = coreD.awaitAll()
+            if (onCore != null && coreRes.any { it != null }) onCore(merge(coreRes.filterNotNull()))
+            val lateRes = lateD.awaitAll()
+            val results = coreRes + lateRes
+            if ((core + late).isNotEmpty() && results.all { it == null }) error("không tải được nguồn nào, kiểm tra mạng hoặc link")
+            if (gone.isNotEmpty()) { val g = gone.toSet(); found = found.filter { it !in g } }
+            merge(results.filterNotNull())
+        }
+    }
     suspend fun cached(): List<Channel> = withContext(Dispatchers.IO) {
         merge(allSources().map { s -> s to readCached(s) })
     }

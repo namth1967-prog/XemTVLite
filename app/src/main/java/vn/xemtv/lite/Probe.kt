@@ -77,6 +77,9 @@ fun tsStreamTypes(d: ByteArray): Set<Int>? {
 }
 
 /** Gom các cuộc gọi mạng đang chạy để hủy cùng lúc. */
+/** Kết quả probe: link lỗi cứng (404, sai tên miền, từ chối kết nối) - không cần đo lại. */
+const val HARD_DEAD = -2
+
 class ProbeCtl {
     val calls = ConcurrentLinkedQueue<Call>()
     @Volatile var stopped = false
@@ -138,6 +141,7 @@ class Prober {
     fun probe(url: String, ctl: ProbeCtl = ProbeCtl()): Int {
         try {
             val r = get(url, 128 * 1024, ctl)
+            if (r.code in 400..499) return HARD_DEAD
             if (r.code !in 200..299 || r.body.isEmpty()) return 0
             val text = String(r.body, Charsets.UTF_8)
             if (!text.trimStart().startsWith("#EXTM3U")) {
@@ -169,6 +173,10 @@ class Prober {
             val types = tsStreamTypes(s.body)
             if (types != null && (types.none { it in AUDIO_TYPES } || types.none { it in VIDEO_TYPES })) return 0
             return scoreOf(s, bandwidth)
+        } catch (e: java.net.UnknownHostException) {
+            return if (ctl.stopped) -1 else HARD_DEAD
+        } catch (e: java.net.ConnectException) {
+            return if (ctl.stopped) -1 else HARD_DEAD
         } catch (e: Exception) {
             return if (ctl.stopped) -1 else 0
         }
@@ -190,7 +198,7 @@ class Prober {
                     val jobs = urls.map { u ->
                         launch {
                             val sc = probe(u, ctl)
-                            if (sc >= 0) res[u] = sc
+                            if (sc != -1) res[u] = sc
                             if (sc > 0) first.complete(Unit)
                             if (left.decrementAndGet() == 0) first.complete(Unit)
                         }
