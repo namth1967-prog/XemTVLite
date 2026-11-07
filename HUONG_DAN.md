@@ -21,7 +21,7 @@ Mặc định app nạp danh sách công khai của iptv-org (kênh Việt Nam).
 
 ## Cách dùng trên TV
 
-- **OK** vào kênh. **Giữ OK** để thêm/bỏ ★ yêu thích.
+- **OK** vào kênh. **Giữ OK** trên một kênh để mở menu: thêm/bỏ ★ yêu thích, **Di chuyển kênh** (sang nhóm khác), **Xoá kênh**. Kênh đã xoá/di chuyển được nhớ mãi; muốn hoàn lại vào **Cài đặt → Khôi phục**.
 - Khi đang xem: **↑ / CH+** kênh kế tiếp, **↓ / CH−** kênh trước, **OK** hiện/ẩn tên kênh, **Back** thoát.
 - **Cài đặt**: dán link M3U của bạn. Kênh lỗi sẽ tự thử lại 3 lần.
 

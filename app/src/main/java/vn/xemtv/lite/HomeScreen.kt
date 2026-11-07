@@ -78,8 +78,12 @@ fun HomeScreen(
     onDiscover: () -> Unit,
     onClearFound: () -> Unit,
     onPlay: (Channel) -> Unit,
+    onHide: (Channel) -> Unit,
+    onMove: (Channel, String) -> Unit,
+    onRestore: () -> Unit,
 ) {
     var showSettings by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<Channel?>(null) }   // kênh đang mở menu nhấn giữ
     var numBuf by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { KeyBus.digits.collect { d -> if (numBuf.length < 4) numBuf += d.toString() } }
     LaunchedEffect(numBuf) {
@@ -131,7 +135,7 @@ fun HomeScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     items(shown, key = { it.id }) { c ->
-                        ChannelCard(c, numbers[c.id] ?: 0, c.id in ui.favorites, { onPlay(c) }, { onFav(c) })
+                        ChannelCard(c, numbers[c.id] ?: 0, c.id in ui.favorites, { onPlay(c) }, { menuFor = c })
                     }
                 }
             }
@@ -157,7 +161,59 @@ fun HomeScreen(
         }
     }
 
-    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToken, onCheckToken, onDiscover, onClearFound)
+    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToken, onCheckToken, onDiscover, onClearFound, onRestore)
+
+    menuFor?.let { c ->
+        ChannelMenu(
+            c = c, number = numbers[c.id] ?: 0, fav = c.id in ui.favorites, groups = order.distinct(),
+            onDismiss = { menuFor = null },
+            onFav = { onFav(c); menuFor = null },
+            onHide = { onHide(c); menuFor = null },
+            onMove = { g -> onMove(c, g); menuFor = null },
+        )
+    }
+}
+
+/** Menu khi nhấn giữ một kênh: yêu thích, di chuyển sang nhóm khác, xoá. */
+@Composable
+private fun ChannelMenu(
+    c: Channel,
+    number: Int,
+    fav: Boolean,
+    groups: List<String>,
+    onDismiss: () -> Unit,
+    onFav: () -> Unit,
+    onHide: () -> Unit,
+    onMove: (String) -> Unit,
+) {
+    var picking by remember { mutableStateOf(false) }
+    val first = remember { FocusRequester() }
+    val firstGroup = groups.firstOrNull { it != c.group }
+    LaunchedEffect(picking) { runCatching { first.requestFocus() } }
+    AlertDialog(
+        onDismissRequest = { if (picking) picking = false else onDismiss() },
+        containerColor = Color(0xFF151C2E),
+        title = {
+            Text(if (picking) "Chuyển \"${c.name}\" sang nhóm:" else "$number   ${c.name}", color = White, maxLines = 2)
+        },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!picking) {
+                    Pill(if (fav) "☆ Bỏ yêu thích" else "★ Thêm vào yêu thích", false, modifier = Modifier.focusRequester(first), onClick = onFav)
+                    Pill("Di chuyển kênh…", false) { picking = true }
+                    Pill("Xoá kênh", false, textColor = Color(0xFFFF8A8A), onClick = onHide)
+                } else {
+                    groups.forEach { g ->
+                        Pill(
+                            if (g == c.group) "$g (hiện tại)" else g, g == c.group, enabled = g != c.group,
+                            modifier = if (g == firstGroup) Modifier.focusRequester(first) else Modifier,
+                        ) { onMove(g) }
+                    }
+                }
+            }
+        },
+        confirmButton = { Pill(if (picking) "Quay lại" else "Đóng", false) { if (picking) picking = false else onDismiss() } },
+    )
 }
 
 @Composable
@@ -261,6 +317,7 @@ private fun SettingsDialog(
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
     onClearFound: () -> Unit,
+    onRestore: () -> Unit,
 ) {
     var tok by remember { mutableStateOf(ui.ghToken) }
     var showAdd by remember { mutableStateOf(false) }
@@ -284,6 +341,9 @@ private fun SettingsDialog(
                 }
                 SettingRow("Tự bổ sung nguồn khi có kênh chết") {
                     Pill(if (ui.autoFill) "BẬT" else "TẮT", ui.autoFill, small = true, onClick = onToggleAutoFill)
+                }
+                SettingRow("Đã xoá ${ui.hidden.size} · đã di chuyển ${ui.moved.size} kênh") {
+                    Pill("Khôi phục", false, enabled = ui.hidden.isNotEmpty() || ui.moved.isNotEmpty(), small = true, onClick = onRestore)
                 }
                 HorizontalDivider(color = divider)
 

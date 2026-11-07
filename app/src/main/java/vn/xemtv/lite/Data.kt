@@ -319,6 +319,19 @@ class Repo(context: Context) {
     // Kết quả kiểm tra từng link: lưu mãi cho đến khi người dùng bấm kiểm tra lại
     val health = Health(prefs, "health3")
 
+    /** id các kênh người dùng đã xoá (ẩn mãi cho đến khi khôi phục). */
+    var hidden: Set<String>
+        get() = prefs.getStringSet("hidden", emptySet()) ?: emptySet()
+        set(v) { prefs.edit().putStringSet("hidden", HashSet(v)).apply() }
+
+    /** Kênh người dùng đã di chuyển: id -> tên nhóm mới. */
+    var moved: Map<String, String>
+        get() = try {
+            val o = JSONObject(prefs.getString("moved", "{}") ?: "{}")
+            o.keys().asSequence().associateWith { o.getString(it) }
+        } catch (e: Exception) { emptyMap() }
+        set(v) { prefs.edit().putString("moved", JSONObject(HashMap(v) as Map<*, *>).toString()).apply() }
+
     /** Tự tìm nguồn bổ sung khi có kênh chết. */
     var autoFill: Boolean
         get() = prefs.getBoolean("autofill", true)

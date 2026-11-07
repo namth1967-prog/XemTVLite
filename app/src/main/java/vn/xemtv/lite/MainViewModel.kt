@@ -36,9 +36,13 @@ data class UiState(
     val discoverMsg: String? = null,
     val tokenMsg: String? = null,
     val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
+    val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
+    val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
 ) {
-    /** Chỉ kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được. */
-    val alive: List<Channel> = all.filter { c -> c.urls.any { it in ok } }
+    /** Chỉ kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được, bỏ kênh đã xoá, áp dụng nhóm đã di chuyển. */
+    val alive: List<Channel> = all
+        .filter { c -> c.id !in hidden && c.urls.any { it in ok } }
+        .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
 }
 
 /** NEW: chỉ kênh chưa có kết quả. DEAD: thêm các kênh đang chết. ALL: kiểm tra lại tất cả. */
@@ -57,6 +61,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras,
             ok = repo.health.ok(), dead = repo.health.dead(),
             ghToken = repo.ghToken, foundCount = repo.found.size, autoFill = repo.autoFill,
+            hidden = repo.hidden, moved = repo.moved,
         )
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -123,6 +128,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         sourcesChanged()
     }
 
+    // ----- Xoá / di chuyển kênh (menu nhấn giữ) -----
+    fun hideChannel(c: Channel) {
+        val h = _ui.value.hidden + c.id
+        repo.hidden = h
+        _ui.update { it.copy(hidden = h) }
+    }
+
+    fun moveChannel(c: Channel, group: String) {
+        val m = _ui.value.moved + (c.id to group)
+        repo.moved = m
+        _ui.update { it.copy(moved = m) }
+    }
+
+    fun restoreChannels() {
+        repo.hidden = emptySet()
+        repo.moved = emptyMap()
+        _ui.update { it.copy(hidden = emptySet(), moved = emptyMap()) }
+    }
+
     fun toggleAutoFill() {
         repo.autoFill = !repo.autoFill
         _ui.update { it.copy(autoFill = repo.autoFill) }
@@ -165,7 +189,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
             val h = repo.health
-            val chans = _ui.value.all
+            val st = _ui.value
+            val chans = st.all.filter { it.id !in st.hidden }   // kênh đã xoá không cần kiểm tra
             val ok0 = h.ok()
             val dead0 = h.dead()
             val targets = when (mode) {
@@ -221,7 +246,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun maybeAutoFill() {
         val st = _ui.value
         if (st.all.isEmpty()) return
-        val missing = st.all.filter { c -> c.urls.none { it in st.ok } }
+        val missing = st.all.filter { c -> c.id !in st.hidden && c.urls.none { it in st.ok } }
         repo.wanted = missing.map { it.id }.toSet()
         if (!repo.autoFill || missing.isEmpty() || st.discovering) return
         if (System.currentTimeMillis() - repo.lastDiscover < FILL_EVERY_MS) return
