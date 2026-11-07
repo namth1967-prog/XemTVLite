@@ -1,6 +1,5 @@
 LICH SU PHIEN BAN (so phien ban hien tren tieu de app: "Xem TV Lite vX.Y")
 
-3.0  Sua: loi khi dang xem KHONG con xoa kenh (chi tru diem link do va xep xuong cuoi hang; kenh chi bi an khi quet kiem tra ket luan chet). Het link thi giu nguyen trong trinh phat va hien thong bao giua man hinh thay vi im lang. Quet kiem tra: do lai sau 1,5 giay, 12 luong de it bao chet nham. Nut "Tai lai": hien thong bao ket qua (so kenh, kenh moi) va thu lai ca cac kenh dang chet.
 2.9  Nhanh hon: nguon loi (co san + nhom ban them) nap xong la hien kenh ngay, khong cho The thao/Phim/nguon tu tim; kenh cua nhom ban tu them hien ngay khi nap, khong cho kiem tra va duoc kiem tra truoc; do 2 link tot/kenh thay vi 3; link loi cung (404, sai ten mien, tu choi ket noi) khong do lai; timeout ngan hon, 16 luong. Sau khi tim nguon bao ro "da nap them X kenh va Y link moi". O nhap token chuyen sang hop rieng sat mep tren, khong bi ban phim che.
 2.8  Sua: menu giu OK khong con tu dong dong khi nha phim (bo qua phim OK cho den khi nha han). O nhap: phim Xong/Next, len/xuong va Back deu an ban phim ao that su roi chuyen focus ra khoi o.
 2.7  Menu kenh chi mo bang cach NHAN VA GIU phim OK (mo ngay khi dang giu); bo phim Menu. Bam OK nhanh van la mo kenh.

@@ -244,11 +244,6 @@ class Health(private val prefs: android.content.SharedPreferences, private val k
     }
     /** Đang phát được thật: xóa lỗi, giữ điểm cũ. */
     fun confirm(url: String) { m[url] = Stat(maxOf(m[url]?.score ?: 0, 1), 0) }
-    /** Lỗi khi đang xem: chỉ trừ điểm để link đó xuống cuối hàng, KHÔNG đánh dấu chết (kênh không biến mất). */
-    fun penalize(url: String) {
-        val o = m[url] ?: return
-        if (o.score > 0) m[url] = Stat(maxOf(1, o.score / 2), o.fails)
-    }
     /** Lỗi 1 lần (khi đang xem hoặc đo nhanh). */
     fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1) }
     /** Đã đo lại chắc chắn là chết. */

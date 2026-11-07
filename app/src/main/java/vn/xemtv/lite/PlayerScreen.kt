@@ -58,7 +58,6 @@ fun PlayerScreen(
     var numMsg by remember { mutableStateOf<String?>(null) }
     var retryCh by remember { mutableStateOf("") }      // kênh đã được tự thử lại 1 lượt
     var reloadTick by remember { mutableIntStateOf(0) }
-    var failed by remember { mutableStateOf(false) }     // đã thử hết các nguồn mà vẫn không mở được
     val focus = remember { FocusRequester() }
 
     val player = remember {
@@ -108,8 +107,7 @@ fun PlayerScreen(
             status = "$reason, đang đo lại các nguồn…"
             reloadTick++
         } else {
-            status = "Chưa mở được kênh ($reason)."
-            failed = true
+            status = "Kênh không dùng được ($reason). Bấm ↑/↓ để đổi kênh."
             showInfo = true
             infoTick++
         }
@@ -151,17 +149,10 @@ fun PlayerScreen(
     LaunchedEffect(list, index, reloadTick) {
         val ch = list[index]
         status = "Đang tìm nguồn tốt nhất (${ch.urls.size} link)…"
-        failed = false
         showInfo = true
         infoTick++
         player.stop()
-        val order = try {
-            rank(ch.urls)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            ch.urls          // đo lỗi bất ngờ thì cứ thử các link theo thứ tự có sẵn, không để app thoát
-        }
+        val order = rank(ch.urls)
         candidates = order
         urlIdx = 0
         player.setMediaItem(MediaItem.fromUri(order.first()))
@@ -229,16 +220,6 @@ fun PlayerScreen(
                 }
             },
         )
-        if (failed) {
-            Column(
-                Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(horizontal = 40.dp, vertical = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Chưa mở được kênh này", fontSize = 28.sp, color = Color.White)
-                Text("Kênh vẫn được giữ trong danh sách (có thể chỉ tạm thời bị lỗi).", fontSize = 16.sp, color = Color(0xFFCCCCCC))
-                Text("Bấm ↑/↓ để đổi kênh, Back để quay lại. Thử lại sau bằng Cài đặt → Thử lại các kênh đang chết.", fontSize = 16.sp, color = Color(0xFFFFC857))
-            }
-        }
         if (numBuf.isNotEmpty() || numMsg != null) {
             Text(
                 numMsg ?: numBuf,

@@ -87,7 +87,7 @@ private fun App(vm: MainViewModel = viewModel()) {
             },
             onGroup = vm::setGroup,
             onFav = vm::toggleFav,
-            onReload = { vm.load(manual = true) },
+            onReload = { vm.load() },
             onAddSource = vm::addSource,
             onRemoveSource = vm::removeSource,
             onToggleBuiltIn = vm::toggleBuiltIn,
