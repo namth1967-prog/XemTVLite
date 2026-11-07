@@ -24,7 +24,8 @@ val BUILT_IN_URLS = listOf(
     "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_vietnam.m3u8",
 )
 
-const val G_NATIONAL = "Quốc gia (VTV)"
+const val G_NATIONAL = "VTV"
+const val G_ESSENTIAL = "Thiết yếu"
 const val G_LOCAL = "Địa phương"
 const val G_VTVCAB = "VTVcab"
 const val G_SCTV = "SCTV"
@@ -32,12 +33,12 @@ const val G_HTVC = "HTVC"
 const val G_SPORT = "Thể thao"
 const val G_MOVIE = "Phim"
 const val G_OTHER = "Khác"
-// Thứ tự nhóm = thứ tự đánh số kênh: VTV, VTVcab, SCTV, HTVC, Địa phương, rồi Thể thao, Phim, nhóm của bạn, Khác
-val VN_GROUPS = listOf(G_NATIONAL, G_VTVCAB, G_SCTV, G_HTVC, G_LOCAL)
+// Thứ tự nhóm = thứ tự đánh số kênh: VTV, Thiết yếu, VTVcab, SCTV, HTVC, Địa phương, rồi Thể thao, Phim, nhóm của bạn, Khác
+val VN_GROUPS = listOf(G_NATIONAL, G_ESSENTIAL, G_VTVCAB, G_SCTV, G_HTVC, G_LOCAL)
 private val AUTO_GROUPS = VN_GROUPS + G_OTHER
 
 private const val MAX_LINKS = 12
-private const val STAMP_TTL_MS = 6L * 3600 * 1000
+private const val DEAD_AFTER = 2   // lỗi liên tiếp từng này lần thì coi link là chết
 
 /** Một kênh = nhiều link (urls). Link đầu là link chính, các link sau là dự phòng. */
 data class Channel(val id: String, val name: String, val logo: String, val group: String, val urls: List<String>)
@@ -45,11 +46,11 @@ data class Channel(val id: String, val name: String, val logo: String, val group
 /** auto = true: nguồn có sẵn, tự chia nhóm VN. auto = false: link của bạn, cả danh sách vào 1 nhóm tên [name]. */
 data class Source(
     val name: String, val url: String, val auto: Boolean = false, val discovered: Boolean = false,
-    val mode: String = "all",   // "sports": chỉ giữ kênh thể thao
+    val mode: String = "all",   // "sports": chỉ giữ kênh thể thao; "vn": chỉ giữ kênh tiếng Việt
     val limit: Int = 0,          // > 0: chỉ lấy tối đa ngần này kênh đầu
 )
 
-private class Entry(val name: String, val logo: String, val url: String, val group: String = "")
+private class Entry(val name: String, val logo: String, val url: String, val group: String = "", val tvgId: String = "")
 
 // Nguồn tự tìm được chỉ giữ kênh có dấu hiệu Việt Nam
 val KEEP_RE = Regex("vtv|htv|vtc|thvl|sctv|antv|vov|viet|truyen hinh|thuyet minh|long tieng|\\bvn\\b|\\.vn\\b|vietsub|vtvcab|k\\+|bong da viet")
@@ -64,8 +65,9 @@ val EXTRA_SOURCES = listOf(
     Source(G_SPORT, "$FT/playlist_spain.m3u8", mode = "sports"),
     Source(G_SPORT, "$FT/playlist_italy.m3u8", mode = "sports"),
     Source(G_SPORT, "$FT/playlist_usa.m3u8", mode = "sports"),
-    Source(G_MOVIE, "$ORG/movies.m3u", limit = 60),
-    Source(G_MOVIE, "$ORG/series.m3u", limit = 40),
+    // Nhóm Phim chỉ giữ kênh tiếng Việt (app không dịch tức thì được)
+    Source(G_MOVIE, "$ORG/movies.m3u", mode = "vn"),
+    Source(G_MOVIE, "$ORG/series.m3u", mode = "vn"),
 )
 private val SPORT_RE = Regex("sport|the thao|bong da|football|soccer|\\bf1\\b|\\bk\\+|eurosport|canal\\+ (foot|live)|bein|espn|dazn")
 
@@ -125,7 +127,9 @@ private val PROVINCES = listOf(
 )
 private val PROVINCE_RE = Regex("(?:^|[^a-z])(?:${PROVINCES.joinToString("|")})(?:[^a-z]|$)")
 private val LOCAL_ABBR_RE = Regex("^(?:thvl|htv|btv|brt|la\\s*34|dnrtv|dntv|hanoitv|thdt|thtg|thbt|thct|thcm|qrt|trt|prt|drt|bltv|hgtv|ctv)(?![a-z])")
-private val NATIONAL_RE = Regex("^(?:vtv|vov|antv|qptv|qpvn|vnews|vtc|quoc hoi|thong tan xa)")
+// Nhóm "VTV" chỉ chứa kênh VTV. Các kênh khác (ANTV, QPVN, TVB, Vietnam Today…) vào nhóm "Thiết yếu".
+private val NATIONAL_RE = Regex("^vtv")
+private val ESSENTIAL_RE = Regex("^(?:antv|an ninh|qptv|qpvn|quoc phong|vnews|vov|vtc|quoc hoi|thong tan xa|tvb|viet\\s*nam\\s*today)")
 
 fun classifyVn(name: String): String {
     val f = fold(name)
@@ -134,6 +138,7 @@ fun classifyVn(name: String): String {
         f.startsWith("sctv") -> G_SCTV
         f.startsWith("htvc") -> G_HTVC
         NATIONAL_RE.containsMatchIn(f) -> G_NATIONAL
+        ESSENTIAL_RE.containsMatchIn(f) -> G_ESSENTIAL
         LOCAL_ABBR_RE.containsMatchIn(f) || PROVINCE_RE.containsMatchIn(f) -> G_LOCAL
         else -> G_OTHER
     }
@@ -156,6 +161,10 @@ private val AUDIO_URL_RE = Regex("\\.(mp3|aac|ogg|m4a|opus|wav)(\\?|$)", RegexOp
 private fun isRadio(name: String, group: String, url: String) =
     RADIO_RE.containsMatchIn(fold(name)) || fold(group).contains("radio") || AUDIO_URL_RE.containsMatchIn(url)
 
+/** Kênh có dấu hiệu tiếng Việt: tvg-id đuôi .vn hoặc tên/nhóm có từ khóa Việt Nam. */
+private fun isVietnamese(e: Entry) =
+    e.tvgId.contains(".vn", true) || KEEP_RE.containsMatchIn(fold(e.name + " " + e.group))
+
 private val attrRegex = Regex("""([\w-]+)="([^"]*)"""")
 
 private fun parseM3u(text: String): List<Entry> {
@@ -163,6 +172,7 @@ private fun parseM3u(text: String): List<Entry> {
     var name: String? = null
     var logo = ""
     var group = ""
+    var tvg = ""
     for (raw in text.removePrefix("﻿").lineSequence()) {
         val line = raw.trim()
         if (line.isEmpty()) continue
@@ -171,34 +181,51 @@ private fun parseM3u(text: String): List<Entry> {
             name = line.substringAfterLast(',').trim().ifBlank { attrs["tvg-id"] ?: "" }
             logo = attrs["tvg-logo"].orEmpty()
             group = attrs["group-title"].orEmpty()
+            tvg = attrs["tvg-id"].orEmpty()
         } else if (!line.startsWith("#") && name != null) {
-            if (name.isNotBlank() && line.startsWith("http", ignoreCase = true)) out += Entry(name, logo, line, group)
+            if (name.isNotBlank() && line.startsWith("http", ignoreCase = true)) out += Entry(name, logo, line, group, tvg)
             name = null
         }
     }
     return out
 }
 
-class Stamps(private val prefs: android.content.SharedPreferences, private val key: String) {
-    private val m = java.util.concurrent.ConcurrentHashMap<String, Long>()
+/**
+ * Kết quả kiểm tra từng link, LƯU MÃI trên máy cho đến khi người dùng kiểm tra lại.
+ * score > 0: chạy được (càng cao càng tốt: tốc độ tải + băng thông khai báo).
+ * fails: số lần lỗi liên tiếp; từ [DEAD_AFTER] lần trở lên thì coi là chết (1 lần lỗi lẻ không bị loại oan).
+ */
+class Health(private val prefs: android.content.SharedPreferences, private val key: String) {
+    private class Stat(val score: Int, val fails: Int)
+    private val m = java.util.concurrent.ConcurrentHashMap<String, Stat>()
 
     init {
         try {
             val o = JSONObject(prefs.getString(key, "{}") ?: "{}")
-            o.keys().forEach { m[it] = o.getLong(it) }
+            o.keys().forEach { k -> val a = o.getJSONArray(k); m[k] = Stat(a.getInt(0), a.getInt(1)) }
         } catch (_: Exception) {}
     }
 
-    fun fresh(): Set<String> {
-        val now = System.currentTimeMillis()
-        return m.filter { now - it.value < STAMP_TTL_MS }.keys.toSet()
+    fun ok(): Set<String> = m.filter { it.value.score > 0 && it.value.fails < DEAD_AFTER }.keys.toSet()
+    fun dead(): Set<String> = m.filter { it.value.fails >= DEAD_AFTER }.keys.toSet()
+    fun score(url: String): Int = m[url]?.score ?: 0
+
+    /** Đo được [s] điểm: làm mượt với điểm cũ để một lần đo nhiễu không đảo thứ tự. */
+    fun succeed(url: String, s: Int) {
+        val old = m[url]?.score ?: 0
+        m[url] = Stat(if (old > 0) (old + s) / 2 else s, 0)
     }
-    fun add(urls: Collection<String>) { val now = System.currentTimeMillis(); urls.forEach { m[it] = now } }
-    fun remove(urls: Collection<String>) { urls.forEach { m.remove(it) } }
+    /** Đang phát được thật: xóa lỗi, giữ điểm cũ. */
+    fun confirm(url: String) { m[url] = Stat(maxOf(m[url]?.score ?: 0, 1), 0) }
+    /** Lỗi 1 lần (khi đang xem hoặc đo nhanh). */
+    fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1) }
+    /** Đã đo lại chắc chắn là chết. */
+    fun kill(url: String) { m[url] = Stat(0, DEAD_AFTER) }
+
     fun save() {
-        val now = System.currentTimeMillis()
-        m.entries.removeAll { now - it.value >= STAMP_TTL_MS }
-        prefs.edit().putString(key, JSONObject(HashMap(m) as Map<*, *>).toString()).apply()
+        val o = JSONObject()
+        m.forEach { (k, v) -> o.put(k, JSONArray(listOf(v.score, v.fails))) }
+        prefs.edit().putString(key, o.toString()).apply()
     }
 }
 
@@ -251,12 +278,49 @@ class Repo(context: Context) {
         set(v) { prefs.edit().putString("found", JSONArray(v).toString()).apply() }
 
     var favorites: Set<String>
-        get() = prefs.getStringSet("fav2", emptySet()) ?: emptySet()
+        get() = (prefs.getStringSet("fav2", emptySet()) ?: emptySet()).map { id ->
+            // Đổi tên nhóm cũ "Quốc gia (VTV)" -> "VTV" hoặc "Thiết yếu" để không mất kênh yêu thích
+            val old = "Quốc gia (VTV)|"
+            if (id.startsWith(old)) {
+                val k = id.removePrefix(old)
+                val g = if (k.startsWith("vtv")) G_NATIONAL else G_ESSENTIAL
+                "$g|$k"
+            } else id
+        }.toSet()
         set(v) { prefs.edit().putStringSet("fav2", HashSet(v)).apply() }
 
-    // Kết quả kiểm tra: link chạy được (ok) và link chết (dead), mỗi kết quả giữ 6 giờ rồi kiểm tra lại
-    val okStamps = Stamps(prefs, "ok2")
-    val deadStamps = Stamps(prefs, "dead2")
+    // Kết quả kiểm tra từng link: lưu mãi cho đến khi người dùng bấm kiểm tra lại
+    val health = Health(prefs, "health3")
+
+    /** Tự tìm nguồn bổ sung khi có kênh chết. */
+    var autoFill: Boolean
+        get() = prefs.getBoolean("autofill", true)
+        set(v) { prefs.edit().putBoolean("autofill", v).apply() }
+
+    var lastDiscover: Long
+        get() = prefs.getLong("lastdisc", 0L)
+        set(v) { prefs.edit().putLong("lastdisc", v).apply() }
+
+    /** id các kênh đang không có link sống: nguồn tự tìm được ưu tiên gộp vào đúng các kênh này. */
+    var wanted: Set<String>
+        get() = prefs.getStringSet("wanted2", emptySet()) ?: emptySet()
+        set(v) { prefs.edit().putStringSet("wanted2", HashSet(v)).apply() }
+
+    /** key kênh -> nhóm, của các kênh đang thiếu link sống. */
+    private fun wantedGroups(): Map<String, String> {
+        val m = HashMap<String, String>()
+        for (id in wanted) { val i = id.indexOf('|'); if (i > 0) m[id.substring(i + 1)] = id.substring(0, i) }
+        return m
+    }
+
+    private fun filterFor(s: Source, list: List<Entry>, wantedKeys: Set<String>): List<Entry> {
+        var l = list
+        if (s.discovered) l = l.filter { KEEP_RE.containsMatchIn(fold(it.name + " " + it.group)) || channelKey(it.name) in wantedKeys }
+        if (s.mode == "sports") l = l.filter { SPORT_RE.containsMatchIn(fold(it.name + " " + it.group)) }
+        if (s.mode == "vn") l = l.filter { isVietnamese(it) }
+        if (s.limit > 0) l = l.take(s.limit)
+        return l
+    }
 
     // ----- Tải & gộp -----
     // Thứ tự = thứ tự ưu tiên link: link gốc trong app -> danh sách công khai -> link của bạn -> nguồn tự tìm
@@ -274,24 +338,25 @@ class Repo(context: Context) {
     private fun serialize(entries: List<Entry>) = buildString {
         entries.forEach {
             append("#EXTINF:-1 tvg-logo=\"").append(it.logo.replace("\"", "")).append("\" group-title=\"")
-                .append(it.group.replace("\"", "")).append("\",").append(it.name.replace("\n", " ")).append('\n')
+                .append(it.group.replace("\"", "")).append("\" tvg-id=\"").append(it.tvgId.replace("\"", "")).append("\",").append(it.name.replace("\n", " ")).append('\n')
             append(it.url).append('\n')
         }
     }
 
     private fun readCached(s: Source): List<Entry> = try {
         if (s.url == EXTRA_ASSET) parseM3u(ctx.assets.open("live_extra.m3u").bufferedReader().readText())
-        else file(s).takeIf { it.exists() }?.let { parseM3u(it.readText()) } ?: emptyList()
+        else file(s).takeIf { it.exists() }?.let { filterFor(s, parseM3u(it.readText()), wantedGroups().keys) } ?: emptyList()
     } catch (e: Exception) { emptyList() }
 
     private fun merge(parts: List<Pair<Source, List<Entry>>>): List<Channel> {
         val map = LinkedHashMap<String, Channel>()
+        val wantedGroup = wantedGroups()
         for ((s, entries) in parts) for (e in entries) {
             if (isRadio(e.name, e.group, e.url)) continue
             val key = channelKey(e.name)
             if (key.isEmpty()) continue
             val display = canonicalName(e.name)
-            val group = if (s.auto) classifyVn(display) else s.name
+            val group = (if (s.discovered) wantedGroup[key] else null) ?: if (s.auto) classifyVn(display) else s.name
             val id = "$group|$key"
             val cur = map[id]
             if (cur == null) map[id] = Channel(id, display, e.logo, group, listOf(e.url))
@@ -310,6 +375,8 @@ class Repo(context: Context) {
     suspend fun fetch(): List<Channel> = withContext(Dispatchers.IO) {
         val srcs = allSources()
         val sem = Semaphore(8)
+        val wk = wantedGroups().keys
+        val gone = java.util.concurrent.ConcurrentLinkedQueue<String>()   // nguồn tự tìm đã bị xóa (404/410)
         val results = coroutineScope {
             srcs.map { s ->
                 async {
@@ -321,22 +388,25 @@ class Repo(context: Context) {
                                 if (!r.isSuccessful) error("HTTP ${r.code}")
                                 r.body?.string().orEmpty()
                             }
-                            var list = parseM3u(body)
-                            if (s.discovered) list = list.filter { KEEP_RE.containsMatchIn(fold(it.name + " " + it.group)) }
-                            if (s.mode == "sports") list = list.filter { SPORT_RE.containsMatchIn(fold(it.name + " " + it.group)) }
-                            if (s.limit > 0) list = list.take(s.limit)
+                            val list = filterFor(s, parseM3u(body), wk)
                             if (list.isEmpty()) error("trống")
                             file(s).writeText(serialize(list))   // lưu bản đã lọc cho nhẹ
                             s to list
                         } catch (e: Exception) {
-                            val c = readCached(s)
-                            if (c.isNotEmpty()) s to c else null
+                            val m = e.message.orEmpty()
+                            if (s.discovered && (m.startsWith("HTTP 404") || m.startsWith("HTTP 410"))) {
+                                gone.add(s.url); forget(s); null     // nguồn chết hẳn -> bỏ để tìm nguồn thay thế
+                            } else {
+                                val c = readCached(s)
+                                if (c.isNotEmpty()) s to c else null
+                            }
                         }
                     }
                 }
             }.awaitAll()
         }
         if (srcs.isNotEmpty() && results.all { it == null }) error("không tải được nguồn nào, kiểm tra mạng hoặc link")
+        if (gone.isNotEmpty()) { val g = gone.toSet(); found = found.filter { it !in g } }
         merge(results.filterNotNull())
     }
 }

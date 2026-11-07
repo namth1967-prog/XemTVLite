@@ -71,6 +71,8 @@ fun HomeScreen(
     onToggleBuiltIn: () -> Unit,
     onToggleExtras: () -> Unit,
     onScan: () -> Unit,
+    onScanDead: () -> Unit,
+    onToggleAutoFill: () -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
@@ -155,7 +157,7 @@ fun HomeScreen(
         }
     }
 
-    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onToken, onCheckToken, onDiscover, onClearFound)
+    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToken, onCheckToken, onDiscover, onClearFound)
 }
 
 @Composable
@@ -237,6 +239,8 @@ private fun SettingsDialog(
     onToggleBuiltIn: () -> Unit,
     onToggleExtras: () -> Unit,
     onScan: () -> Unit,
+    onScanDead: () -> Unit,
+    onToggleAutoFill: () -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
@@ -258,7 +262,13 @@ private fun SettingsDialog(
                 SettingRow(
                     if (scanning) "Đang kiểm tra ${ui.scanDone}/${ui.scanTotal} · hiện ${ui.alive.size} kênh"
                     else "Kênh đang hiện: ${ui.alive.size}/${ui.all.size}"
-                ) { Pill("Kiểm tra lại", false, enabled = !scanning, small = true, onClick = onScan) }
+                ) { Pill("Kiểm tra lại tất cả", false, enabled = !scanning, small = true, onClick = onScan) }
+                SettingRow("Thử lại các kênh đang chết") {
+                    Pill("Thử lại", false, enabled = !scanning, small = true, onClick = onScanDead)
+                }
+                SettingRow("Tự bổ sung nguồn khi có kênh chết") {
+                    Pill(if (ui.autoFill) "BẬT" else "TẮT", ui.autoFill, small = true, onClick = onToggleAutoFill)
+                }
                 HorizontalDivider(color = divider)
 
                 SettingRow("Nguồn có sẵn (VTV, địa phương, VTVcab…)") {

@@ -34,6 +34,9 @@ class Discovery(private val token: String) {
         "iptv vietnam", "iptv vn m3u", "iptv vietnam sports", "vietnam tv playlist m3u8",
         "iptv free vietnam github", "m3u8 vtv thvl htv hd", "kenh the thao m3u", "iptv worldwide sports m3u",
         "vtv htv m3u", "iptv the thao phim viet", "truyen hinh viet nam m3u", "iptv vtvcab sctv thvl",
+        "vietnam m3u8", "viet iptv playlist", "vn iptv list", "vtv m3u8 github", "free iptv vietnam live",
+        "vietnamese tv channels m3u", "iptv sctv htvc", "kenh phim viet nam m3u", "tv vietnam live stream",
+        "iptv asia m3u", "iptv playlist updated daily", "htv thvl vtv playlist",
     )
 
     private fun call(url: String): Res {
@@ -75,7 +78,7 @@ class Discovery(private val token: String) {
                 onProgress("Đang tìm nguồn mới trên GitHub (${qi + 1}/${queries.size}) – đã có ${out.size} file…")
                 val repos = try {
                     if (qi > 0) delay(if (token.isNotEmpty()) 2200 else 6500)
-                    val url = "https://api.github.com/search/repositories?q=${enc("$q pushed:>$since")}&sort=updated&per_page=10"
+                    val url = "https://api.github.com/search/repositories?q=${enc("$q pushed:>$since")}&sort=updated&per_page=15"
                     JSONObject(getJson(url)).optJSONArray("items")
                 } catch (e: Stop) { throw e } catch (e: Exception) { null } ?: continue
 
@@ -93,10 +96,10 @@ class Discovery(private val token: String) {
                         for (k in 0 until tree.length()) {
                             val t = tree.getJSONObject(k)
                             val p = t.optString("path")
-                            if (t.optString("type") == "blob" && p.endsWith(".m3u", true) && t.optLong("size") < 5_000_000) files += p
+                            if (t.optString("type") == "blob" && (p.endsWith(".m3u", true) || p.endsWith(".m3u8", true)) && t.optLong("size") in 300L..5_000_000L) files += p
                         }
                         files.sortBy { if (KEEP_RE.containsMatchIn(fold(it))) 0 else 1 }
-                        for (p in files.take(6)) {
+                        for (p in files.take(8)) {
                             out += "https://raw.githubusercontent.com/$full/$branch/${p.split("/").joinToString("/") { enc(it) }}"
                         }
                     } catch (e: Stop) { throw e } catch (_: Exception) { }
