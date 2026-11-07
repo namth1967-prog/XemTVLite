@@ -12,8 +12,8 @@ android {
         applicationId = "vn.xemtv.lite"
         minSdk = 26
         targetSdk = 34
-        versionCode = 14
-        versionName = "2.3"
+        versionCode = 18
+        versionName = "2.7"
         resourceConfigurations += listOf("vi", "en")
     }
 

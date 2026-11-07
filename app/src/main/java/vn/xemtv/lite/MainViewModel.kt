@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 data class UiState(
@@ -36,20 +35,33 @@ data class UiState(
     val discovering: Boolean = false,
     val discoverMsg: String? = null,
     val tokenMsg: String? = null,
+    val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
+    val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
+    val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
 ) {
-    /** Chỉ kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được. */
-    val alive: List<Channel> = all.filter { c -> c.urls.any { it in ok } }
+    /** Chỉ kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được, bỏ kênh đã xoá, áp dụng nhóm đã di chuyển. */
+    val alive: List<Channel> = all
+        .filter { c -> c.id !in hidden && c.urls.any { it in ok } }
+        .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
 }
 
+/** NEW: chỉ kênh chưa có kết quả. DEAD: thêm các kênh đang chết. ALL: kiểm tra lại tất cả. */
+enum class ScanMode { NEW, DEAD, ALL }
+
 const val FAV = "__fav__"
+
+/** Tự tìm nguồn bổ sung tối đa mỗi 12 giờ. */
+private const val FILL_EVERY_MS = 12L * 3600 * 1000
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = Repo(app)
     private val prober = Prober()
     private val _ui = MutableStateFlow(
         UiState(
-            favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras, ok = repo.okStamps.fresh(), dead = repo.deadStamps.fresh(),
-            ghToken = repo.ghToken, foundCount = repo.found.size,
+            favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras,
+            ok = repo.health.ok(), dead = repo.health.dead(),
+            ghToken = repo.ghToken, foundCount = repo.found.size, autoFill = repo.autoFill,
+            hidden = repo.hidden, moved = repo.moved,
         )
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -57,6 +69,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var discoverJob: Job? = null
 
     init { load() }
+
+    private fun refreshHealth() = _ui.update { it.copy(ok = repo.health.ok(), dead = repo.health.dead()) }
 
     fun load() {
         viewModelScope.launch {
@@ -71,7 +85,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(loading = false, error = if (it.all.isEmpty()) "Lỗi: ${e.message}" else null)
                 }
             }
-            scan(false)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
+            scan(ScanMode.NEW)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
         }
     }
 
@@ -114,77 +128,129 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         sourcesChanged()
     }
 
+    // ----- Xoá / di chuyển kênh (menu nhấn giữ) -----
+    fun hideChannel(c: Channel) {
+        val h = _ui.value.hidden + c.id
+        repo.hidden = h
+        _ui.update { it.copy(hidden = h) }
+    }
+
+    fun moveChannel(c: Channel, group: String) {
+        val m = _ui.value.moved + (c.id to group)
+        repo.moved = m
+        _ui.update { it.copy(moved = m) }
+    }
+
+    fun restoreChannels() {
+        repo.hidden = emptySet()
+        repo.moved = emptyMap()
+        _ui.update { it.copy(hidden = emptySet(), moved = emptyMap()) }
+    }
+
+    fun toggleAutoFill() {
+        repo.autoFill = !repo.autoFill
+        _ui.update { it.copy(autoFill = repo.autoFill) }
+    }
+
     // ----- Chọn link tốt nhất khi phát -----
-    /** Thứ tự thử: link đã kiểm tra tốt -> link chưa biết -> link đã biết là chết. */
+    /**
+     * Thứ tự thử: link đo lại ngay lúc mở và còn tốt (điểm cao trước) -> link chưa đo kịp / chưa biết
+     * -> link vừa lỗi -> link đã biết là chết. Link đầu tiên là link tốt nhất, các link sau là dự phòng theo chất lượng.
+     */
     suspend fun rank(urls: List<String>): List<String> {
-        val st = _ui.value
-        val okU = urls.filter { it in st.ok }
-        val unknown = urls.filter { it !in st.ok && it !in st.dead }
-        val deadU = urls.filter { it in st.dead && it !in st.ok }
-        val pool = okU + unknown
-        val best = prober.best(pool.take(8))
-        return if (best != null) listOf(best) + (pool - best) + deadU else pool + deadU
+        val h = repo.health
+        val ok = h.ok()
+        val dead = h.dead()
+        val okU = urls.filter { it in ok }.sortedByDescending { h.score(it) }
+        val unknown = urls.filter { it !in ok && it !in dead }
+        val deadU = urls.filter { it in dead }
+        val all = okU + unknown
+        val pool = all.take(6)
+        val res = prober.measure(pool)
+        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.fail(u) }
+        h.save()
+        refreshHealth()
+        val live = pool.filter { (res[it] ?: -1) > 0 }.sortedByDescending { h.score(it) }
+        val unsure = pool.filter { (res[it] ?: -1) < 0 }
+        val failed = pool.filter { res[it] == 0 }
+        return live + unsure + all.drop(6) + failed + deadU
     }
 
+    /** Kết quả khi đang xem: phát được thật -> xóa lỗi; lỗi 1 lần chưa loại, lỗi liên tiếp 2 lần mới coi là chết. */
     fun report(c: Channel, ok: Boolean, url: String?) {
-        if (ok && url != null) {
-            repo.okStamps.add(listOf(url)); repo.deadStamps.remove(listOf(url))
-        } else if (!ok) {
-            val bad = if (url != null) listOf(url) else c.urls
-            repo.okStamps.remove(bad); repo.deadStamps.add(bad)
-        }
-        repo.okStamps.save(); repo.deadStamps.save()
-        _ui.update { it.copy(ok = repo.okStamps.fresh(), dead = repo.deadStamps.fresh()) }
+        if (url == null) return
+        if (ok) repo.health.confirm(url) else repo.health.fail(url)
+        repo.health.save()
+        refreshHealth()
     }
 
-    // ----- Kiểm tra kênh (chỉ hiện kênh chắc chắn sống) -----
-    /** force = false: chỉ kiểm tra kênh chưa có kết quả mới (trong 6 giờ). force = true: kiểm tra lại tất cả. */
-    fun scan(force: Boolean = false) {
+    // ----- Kiểm tra kênh (chỉ hiện kênh chắc chắn sống; kết quả lưu mãi) -----
+    fun scan(mode: ScanMode = ScanMode.NEW) {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
-            val chans = _ui.value.all
-            val ok0 = repo.okStamps.fresh()
-            val dead0 = repo.deadStamps.fresh()
-            val targets = if (force) chans
-            else chans.filter { c -> c.urls.none { it in ok0 } && !c.urls.all { it in dead0 } }
-            if (targets.isEmpty()) return@launch
-            _ui.update { it.copy(scanTotal = targets.size, scanDone = 0) }
-            val done = AtomicInteger(0)
-            val sem = Semaphore(12)
-            fun push(total: Boolean) {
-                repo.okStamps.save(); repo.deadStamps.save()
-                _ui.update {
-                    it.copy(
-                        ok = repo.okStamps.fresh(), dead = repo.deadStamps.fresh(),
-                        scanDone = done.get(), scanTotal = if (total) 0 else it.scanTotal,
-                    )
-                }
+            val h = repo.health
+            val st = _ui.value
+            val chans = st.all.filter { it.id !in st.hidden }   // kênh đã xoá không cần kiểm tra
+            val ok0 = h.ok()
+            val dead0 = h.dead()
+            val targets = when (mode) {
+                ScanMode.ALL -> chans
+                ScanMode.DEAD -> chans.filter { c -> c.urls.none { it in ok0 } }
+                ScanMode.NEW -> chans.filter { c -> c.urls.none { it in ok0 } && !c.urls.all { it in dead0 } }
             }
-            try {
-                coroutineScope {
-                    targets.forEach { c ->
-                        launch(Dispatchers.IO) {
-                            sem.withPermit {
-                                val failed = ArrayList<String>()
-                                var good: String? = null
-                                for (u in c.urls) {
-                                    if (!isActive) return@withPermit
-                                    if (prober.check(u)) { good = u; break } else failed += u
-                                }
-                                if (good != null) { repo.okStamps.add(listOf(good)); repo.deadStamps.remove(listOf(good)) }
-                                else repo.okStamps.remove(c.urls)
-                                repo.okStamps.remove(failed)
-                                repo.deadStamps.add(failed)
-                                val d = done.incrementAndGet()
-                                if (d % 3 == 0) push(false)
+            if (targets.isNotEmpty()) runScan(targets)
+            if (isActive) maybeAutoFill()
+        }
+    }
+
+    private suspend fun runScan(targets: List<Channel>) {
+        _ui.update { it.copy(scanTotal = targets.size, scanDone = 0) }
+        val h = repo.health
+        val done = AtomicInteger(0)
+        val sem = Semaphore(12)
+        fun push(finished: Boolean) {
+            h.save()
+            _ui.update {
+                it.copy(
+                    ok = h.ok(), dead = h.dead(),
+                    scanDone = done.get(), scanTotal = if (finished) 0 else it.scanTotal,
+                )
+            }
+        }
+        try {
+            coroutineScope {
+                targets.forEach { c ->
+                    launch(Dispatchers.IO) {
+                        sem.withPermit {
+                            // Đo từng link của kênh, dừng khi đã có 3 link tốt (đủ để xếp hạng, đỡ tốn mạng)
+                            var good = 0
+                            for (u in c.urls) {
+                                if (!isActive) return@withPermit
+                                var sc = prober.probe(u)
+                                if (sc == 0) sc = prober.probe(u)   // đo lại 1 lần để không loại oan link chập chờn
+                                if (sc > 0) { h.succeed(u, sc); good++; if (good >= 3) break }
+                                else if (sc == 0) h.kill(u)
                             }
+                            val d = done.incrementAndGet()
+                            if (d % 3 == 0) push(false)
                         }
                     }
                 }
-            } finally {
-                push(true)
             }
+        } finally {
+            push(true)
         }
+    }
+
+    /** Có kênh không còn link sống -> ghi nhớ các kênh đó và tự tìm nguồn bổ sung (tối đa 12 giờ/lần). */
+    private fun maybeAutoFill() {
+        val st = _ui.value
+        if (st.all.isEmpty()) return
+        val missing = st.all.filter { c -> c.id !in st.hidden && c.urls.none { it in st.ok } }
+        repo.wanted = missing.map { it.id }.toSet()
+        if (!repo.autoFill || missing.isEmpty() || st.discovering) return
+        if (System.currentTimeMillis() - repo.lastDiscover < FILL_EVERY_MS) return
+        discover(auto = true)
     }
 
     // ----- Tự tìm playlist trên GitHub -----
@@ -201,16 +267,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun discover() {
+    fun discover(auto: Boolean = false) {
         if (discoverJob?.isActive == true) return
+        repo.lastDiscover = System.currentTimeMillis()
         discoverJob = viewModelScope.launch {
-            _ui.update { it.copy(discovering = true, discoverMsg = "Đang tìm nguồn mới trên GitHub…") }
+            _ui.update {
+                it.copy(
+                    discovering = true,
+                    discoverMsg = if (auto) "Có kênh chết: đang tự tìm nguồn bổ sung…" else "Đang tìm nguồn mới trên GitHub…",
+                )
+            }
             val d = Discovery(repo.ghToken)
             val urls = try {
                 d.run { msg -> _ui.update { it.copy(discoverMsg = msg) } }
             } catch (e: Exception) { emptyList() }
             val builtin = BUILT_IN_URLS.toSet()
-            val merged = (repo.found + urls).distinct().filter { it !in builtin }.take(120)
+            val merged = (repo.found + urls).distinct().filter { it !in builtin }.take(200)
             repo.found = merged
             val note = when (d.problem) {
                 "token" -> " Token GitHub sai hoặc hết hạn."

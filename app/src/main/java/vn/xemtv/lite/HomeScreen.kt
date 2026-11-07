@@ -14,8 +14,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -33,8 +31,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +39,16 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
@@ -75,13 +81,19 @@ fun HomeScreen(
     onToggleBuiltIn: () -> Unit,
     onToggleExtras: () -> Unit,
     onScan: () -> Unit,
+    onScanDead: () -> Unit,
+    onToggleAutoFill: () -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
     onClearFound: () -> Unit,
     onPlay: (Channel) -> Unit,
+    onHide: (Channel) -> Unit,
+    onMove: (Channel, String) -> Unit,
+    onRestore: () -> Unit,
 ) {
     var showSettings by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<Channel?>(null) }   // kênh đang mở menu nhấn giữ
     var numBuf by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { KeyBus.digits.collect { d -> if (numBuf.length < 4) numBuf += d.toString() } }
     LaunchedEffect(numBuf) {
@@ -133,7 +145,7 @@ fun HomeScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     items(shown, key = { it.id }) { c ->
-                        ChannelCard(c, numbers[c.id] ?: 0, c.id in ui.favorites, { onPlay(c) }, { onFav(c) })
+                        ChannelCard(c, numbers[c.id] ?: 0, c.id in ui.favorites, { onPlay(c) }, { menuFor = c })
                     }
                 }
             }
@@ -159,7 +171,60 @@ fun HomeScreen(
         }
     }
 
-    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onToken, onCheckToken, onDiscover, onClearFound)
+    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToken, onCheckToken, onDiscover, onClearFound, onRestore)
+
+    menuFor?.let { c ->
+        ChannelMenu(
+            c = c, number = numbers[c.id] ?: 0, fav = c.id in ui.favorites, groups = order.distinct(),
+            onDismiss = { menuFor = null },
+            onFav = { onFav(c); menuFor = null },
+            onHide = { onHide(c); menuFor = null },
+            onMove = { g -> onMove(c, g); menuFor = null },
+        )
+    }
+}
+
+/** Menu khi nhấn giữ một kênh: yêu thích, di chuyển sang nhóm khác, xoá. */
+@Composable
+private fun ChannelMenu(
+    c: Channel,
+    number: Int,
+    fav: Boolean,
+    groups: List<String>,
+    onDismiss: () -> Unit,
+    onFav: () -> Unit,
+    onHide: () -> Unit,
+    onMove: (String) -> Unit,
+) {
+    var picking by remember { mutableStateOf(false) }
+    val first = remember { FocusRequester() }
+    val firstGroup = groups.firstOrNull { it != c.group }
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(picking) { if (started) runCatching { first.requestFocus() }; started = true }
+    AlertDialog(
+        onDismissRequest = { if (picking) picking = false else onDismiss() },
+        containerColor = Color(0xFF151C2E),
+        title = {
+            Text(if (picking) "Chuyển \"${c.name}\" sang nhóm:" else "$number   ${c.name}", color = White, maxLines = 2)
+        },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!picking) {
+                    Pill(if (fav) "☆ Bỏ yêu thích" else "★ Thêm vào yêu thích", false, modifier = Modifier.focusRequester(first), onClick = onFav)
+                    Pill("Di chuyển kênh…", false) { picking = true }
+                    Pill("Xoá kênh", false, textColor = Color(0xFFFF8A8A), onClick = onHide)
+                } else {
+                    groups.forEach { g ->
+                        Pill(
+                            if (g == c.group) "$g (hiện tại)" else g, g == c.group, enabled = g != c.group,
+                            modifier = if (g == firstGroup) Modifier.focusRequester(first) else Modifier,
+                        ) { onMove(g) }
+                    }
+                }
+            }
+        },
+        confirmButton = { Pill(if (picking) "Quay lại" else "Đóng", false) { if (picking) picking = false else onDismiss() } },
+    )
 }
 
 @Composable
@@ -191,30 +256,58 @@ private fun Pill(
     ) { Text(text, fontSize = if (small) 15.sp else 18.sp, color = if (enabled) textColor else Muted.copy(alpha = 0.5f), maxLines = 1) }
 }
 
+/** Có logo thì hiện logo; không có (hoặc tải lỗi) thì hiện ô màu riêng của kênh kèm chữ cái đầu. */
+@Composable
+private fun LogoBox(c: Channel) {
+    var failed by remember(c.logo) { mutableStateOf(false) }
+    if (c.logo.isNotBlank() && !failed) {
+        AsyncImage(
+            model = c.logo, contentDescription = c.name, modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit, onError = { failed = true },
+        )
+    } else {
+        val hue = ((c.name.hashCode().toLong() and 0x7fffffffL) % 360L).toFloat()
+        val words = c.name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val initials = if (words.size >= 2) words.take(3).joinToString("") { it.first().uppercase() } else c.name.take(4).uppercase()
+        Box(
+            Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(Color.hsv(hue, 0.45f, 0.55f)),
+            contentAlignment = Alignment.Center,
+        ) { Text(initials, fontSize = 22.sp, color = White, maxLines = 1) }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    var longFired by remember { mutableStateOf(false) }   // lần giữ OK hiện tại đã mở menu rồi
     val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "scale")
     val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { ev ->
+                // Remote TV: chỉ phím OK, và chỉ khi NHẤN VÀ GIỮ (phím lặp) mới mở menu; bấm OK nhanh vẫn là mở kênh
+                val ok = ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter
+                when {
+                    !ok -> false
+                    ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0 -> { longFired = false; false }
+                    ev.type == KeyEventType.KeyDown -> { if (!longFired) { longFired = true; onLong() }; true }   // đang giữ
+                    ev.type == KeyEventType.KeyUp && longFired -> { longFired = false; true }                    // nhả phím sau khi giữ: không tính là bấm
+                    else -> false
+                }
+            }
             .border(3.dp, if (focused) White else Color.Transparent, shape)
             .clip(shape)
             .background(CardBg)
-            .combinedClickable(onClick = onClick, onLongClick = onLong)
+            .combinedClickable(onClick = onClick, onLongClick = onLong)   // cảm ứng / chuột: nhấn giữ
             .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("$number", Modifier.align(Alignment.Start), fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
         Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
-            if (c.logo.isNotBlank()) {
-                AsyncImage(c.logo, c.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            } else {
-                Text(c.name.take(2).uppercase(), fontSize = 26.sp, color = Muted)
-            }
+            LogoBox(c)
         }
         Spacer(Modifier.height(6.dp))
         Text(
@@ -241,12 +334,15 @@ private fun SettingsDialog(
     onToggleBuiltIn: () -> Unit,
     onToggleExtras: () -> Unit,
     onScan: () -> Unit,
+    onScanDead: () -> Unit,
+    onToggleAutoFill: () -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
     onClearFound: () -> Unit,
+    onRestore: () -> Unit,
 ) {
-    var editTok by remember { mutableStateOf(false) }
+    var tok by remember { mutableStateOf(ui.ghToken) }
     var showAdd by remember { mutableStateOf(false) }
     val rDiscover = remember { FocusRequester() }
     val scanning = ui.scanTotal > 0
@@ -262,7 +358,16 @@ private fun SettingsDialog(
                 SettingRow(
                     if (scanning) "Đang kiểm tra ${ui.scanDone}/${ui.scanTotal} · hiện ${ui.alive.size} kênh"
                     else "Kênh đang hiện: ${ui.alive.size}/${ui.all.size}"
-                ) { Pill("Kiểm tra lại", false, enabled = !scanning, small = true, onClick = onScan) }
+                ) { Pill("Kiểm tra lại tất cả", false, enabled = !scanning, small = true, onClick = onScan) }
+                SettingRow("Thử lại các kênh đang chết") {
+                    Pill("Thử lại", false, enabled = !scanning, small = true, onClick = onScanDead)
+                }
+                SettingRow("Tự bổ sung nguồn khi có kênh chết") {
+                    Pill(if (ui.autoFill) "BẬT" else "TẮT", ui.autoFill, small = true, onClick = onToggleAutoFill)
+                }
+                SettingRow("Đã xoá ${ui.hidden.size} · đã di chuyển ${ui.moved.size} kênh") {
+                    Pill("Khôi phục", false, enabled = ui.hidden.isNotEmpty() || ui.moved.isNotEmpty(), small = true, onClick = onRestore)
+                }
                 HorizontalDivider(color = divider)
 
                 SettingRow("Nguồn có sẵn (VTV, địa phương, VTVcab…)") {
@@ -279,7 +384,12 @@ private fun SettingsDialog(
                 HorizontalDivider(color = divider)
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    InputRow("Token GitHub (không bắt buộc)", ui.ghToken, Modifier.weight(1f)) { editTok = true }
+                    TextField(
+                        tok, { tok = it; onToken(it) }, singleLine = true,
+                        label = { Text("Token GitHub (không bắt buộc)") },
+                        colors = tfColors(), modifier = Modifier.weight(1f).leaveOnDpad(),
+                        keyboardOptions = nextOptions, keyboardActions = nextActions(),
+                    )
                     Pill("Kiểm tra", false, enabled = !ui.discovering, small = true,
                         modifier = Modifier.focusProperties { down = rDiscover }, onClick = onCheckToken)
                     val tm = ui.tokenMsg
@@ -309,129 +419,77 @@ private fun SettingsDialog(
         },
         confirmButton = { Pill("Đóng", false, onClick = onDismiss) },
     )
-    if (editTok) TextInputDialog(
-        title = "Token GitHub", initial = ui.ghToken,
-        onDone = { onToken(it); editTok = false }, onDismiss = { editTok = false },
-    )
     if (showAdd) AddGroupDialog({ showAdd = false }) { n, u -> onAdd(n, u); showAdd = false }
 }
 
-/** Ô hiển thị giá trị đã nhập. Bấm OK sẽ mở một modal nhập riêng ở đỉnh màn hình (bàn phím ảo không che được). */
-@Composable
-private fun InputRow(label: String, value: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
-    Column(
-        modifier
-            .clip(shape)
-            .onFocusChanged { focused = it.isFocused }
-            .border(3.dp, if (focused) White else Color.Transparent, shape)
-            .background(CardBg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Text(label, fontSize = 12.sp, color = Muted)
-        Text(
-            value.ifEmpty { "(bấm OK để nhập)" },
-            fontSize = 17.sp, color = if (value.isEmpty()) Muted else White,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/** Hộp thoại luôn nằm ở ĐỈNH màn hình. */
-@Composable
-private fun TopDialog(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        val view = LocalView.current
-        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
-        Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.TopCenter) {
-            Column(
-                Modifier
-                    .fillMaxWidth(0.92f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF151C2E))
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = content,
-            )
-        }
-    }
-}
-
-/** Modal nhập chữ: đang gõ gì được hiện CỠ LỚN ngay phía trên ô nhập nên không bao giờ bị bàn phím che. */
-@Composable
-private fun TextInputDialog(
-    title: String,
-    initial: String,
-    uri: Boolean = false,
-    onDone: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var tf by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
-    val fr = remember { FocusRequester() }
-    TopDialog(onDismiss) {
-        Text(title, color = White, fontSize = 20.sp)
-        Text(
-            tf.text.ifEmpty { "(chưa nhập)" },
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF0B1020)).padding(12.dp),
-            fontSize = 22.sp, color = Color(0xFFFFC857),
-        )
-        TextField(
-            tf, { tf = it }, singleLine = true, colors = tfColors(),
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done,
-                keyboardType = if (uri) KeyboardType.Uri else KeyboardType.Text,
-            ),
-            keyboardActions = KeyboardActions(onDone = { onDone(tf.text.trim()) }),
-            modifier = Modifier.fillMaxWidth().focusRequester(fr),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("Xong", false, small = true) { onDone(tf.text.trim()) }
-            Pill("Hủy", false, small = true, onClick = onDismiss)
-        }
-        LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
-    }
-}
-
-/** Thêm nhóm: nhập tên + link bằng modal riêng; link được TẢI THỬ, chỉ hiện ✔ khi link thật sự tồn tại và là danh sách M3U. */
+/** Hộp thoại nhập nhóm mới: đặt ở ĐỈNH màn hình để bàn phím ảo không che, kèm dấu ✔/✘ báo link đúng sai. */
 @Composable
 private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
     var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("https://") }
-    var editing by remember { mutableStateOf("") }          // "", "name", "url"
-    var checking by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
-    val u = url.trim()
-    val bare = u.equals("https://", true) || u.equals("http://", true) || u.isEmpty()
-
-    // Kiểm tra link sau khi dừng gõ
-    LaunchedEffect(u) {
-        result = null
-        if (bare) { checking = false; return@LaunchedEffect }
-        checking = true
-        result = checkM3u(u)
-        checking = false
-    }
-
-    TopDialog(onDismiss) {
-        Text("Thêm nhóm mới", color = White, fontSize = 20.sp)
-        InputRow("1. Tên nhóm", name, Modifier.fillMaxWidth()) { editing = "name" }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            InputRow("2. Link M3U", if (bare) "" else url, Modifier.weight(1f)) { editing = "url" }
-            val r = result
-            when {
-                bare -> {}
-                checking -> Text("Đang kiểm tra…", color = Muted, fontSize = 14.sp)
-                r != null && r.first -> Text("✔ ${r.second}", color = Color(0xFF4CD964), fontSize = 18.sp)
-                r != null -> Text("✘ ${r.second}", color = Color(0xFFFF6B6B), fontSize = 16.sp)
+    // Sẵn "https://" và đặt con trỏ ở cuối để người dùng gõ tiếp phần còn lại
+    var url by remember { mutableStateOf(TextFieldValue("https://", TextRange(8))) }
+    val u = url.text.trim()
+    val bare = u.equals("https://", true) || u.equals("http://", true)
+    val urlOk = !bare && (u.startsWith("http://", true) || u.startsWith("https://", true))
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val view = LocalView.current
+        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        Column(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF151C2E))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Thêm nhóm mới", color = White, fontSize = 20.sp)
+            TextField(name, { name = it }, singleLine = true, label = { Text("1. Tên nhóm") },
+                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(),
+                keyboardOptions = nextOptions, keyboardActions = nextActions())
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(url, { url = it }, singleLine = true, label = { Text("2. Link M3U (http… hoặc https…)") },
+                    colors = tfColors(), modifier = Modifier.weight(1f).leaveOnDpad(),
+                    keyboardOptions = nextOptions, keyboardActions = nextActions())
+                when {
+                    u.isEmpty() || bare -> {}
+                    urlOk -> Text("✔", color = Color(0xFF4CD964), fontSize = 30.sp)
+                    else -> Text("✘", color = Color(0xFFFF6B6B), fontSize = 30.sp)
+                }
+            }
+            if (u.isNotEmpty() && !bare && !urlOk) Text("Link phải bắt đầu bằng http:// hoặc https://", fontSize = 13.sp, color = Color(0xFFFF9A9A))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Thêm nhóm", false, enabled = urlOk, small = true) { onAdd(name, url.text) }
+                Pill("Hủy", false, small = true, onClick = onDismiss)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("Thêm nhóm", false, enabled = result?.first == true, small = true) { onAdd(name, url) }
-            Pill("Hủy", false, small = true, onClick = onDismiss)
+    }
+}
+
+
+// ---------- Ô nhập trên TV: thoát focus được ----------
+/** Ô nhập văn bản mặc định nuốt phím ↑/↓ nên remote không rời ô được: ở đây ↑/↓ chuyển focus sang ô/nút kế bên. */
+@Composable
+private fun Modifier.leaveOnDpad(): Modifier {
+    val fm = LocalFocusManager.current
+    return this.onPreviewKeyEvent { ev ->
+        if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (ev.key) {
+            Key.DirectionDown -> { fm.moveFocus(FocusDirection.Down); true }
+            Key.DirectionUp -> { fm.moveFocus(FocusDirection.Up); true }
+            else -> false
         }
     }
-    if (editing == "name") TextInputDialog("Tên nhóm", name, onDone = { name = it; editing = "" }, onDismiss = { editing = "" })
-    if (editing == "url") TextInputDialog("Link M3U", url, uri = true, onDone = { url = it; editing = "" }, onDismiss = { editing = "" })
+}
+
+private val nextOptions = KeyboardOptions(imeAction = ImeAction.Next)
+
+/** Phím Next/Done trên bàn phím ảo cũng chuyển focus xuống ô/nút kế tiếp. */
+@Composable
+private fun nextActions(): KeyboardActions {
+    val fm = LocalFocusManager.current
+    return KeyboardActions(
+        onNext = { fm.moveFocus(FocusDirection.Down) },
+        onDone = { fm.moveFocus(FocusDirection.Down) },
+    )
 }
