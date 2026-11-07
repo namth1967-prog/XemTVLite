@@ -69,7 +69,7 @@ set "URL="
 for /f "delims=" %%u in ('git remote get-url origin') do set "URL=%%u"
 if defined URL (
   set URL=%URL:.git=%
-  start "" "%URL%/actions"
+  start "" "%URL%/"
 )
 pause
 exit /b 0
