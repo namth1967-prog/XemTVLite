@@ -1,5 +1,6 @@
 LICH SU PHIEN BAN (so phien ban hien tren tieu de app: "Xem TV Lite vX.Y")
 
+
 2.3  Modal nhap chu o dinh man hinh (chu dang go hien co lon, khong bi ban phim che); link nhom moi duoc tai thu, chi hien tick khi link ton tai va la M3U.
 2.2  O nhap link nhom moi co san https://.
 2.1  Bo kenh radio/audio (VOV...). Cai dat: Kiem tra -> Xuong -> Tim nguon moi; nhap nhom moi o hop thoai rieng tren dinh man hinh (khong bi ban phim che).
