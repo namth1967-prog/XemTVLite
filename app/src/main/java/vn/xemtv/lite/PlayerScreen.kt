@@ -56,8 +56,6 @@ fun PlayerScreen(
     var readyTick by remember { mutableIntStateOf(0) }
     var numBuf by remember { mutableStateOf("") }
     var numMsg by remember { mutableStateOf<String?>(null) }
-    var retryCh by remember { mutableStateOf("") }      // kênh đã được tự thử lại 1 lượt
-    var reloadTick by remember { mutableIntStateOf(0) }
     val focus = remember { FocusRequester() }
 
     val player = remember {
@@ -101,15 +99,11 @@ fun PlayerScreen(
             player.setMediaItem(MediaItem.fromUri(candidates[next]))
             player.prepare()
             player.playWhenReady = true
-        } else if (retryCh != ch.id) {
-            // Hết link dự phòng: đo lại toàn bộ 1 lượt (link chập chờn có thể đã chạy lại) rồi mới bỏ cuộc
-            retryCh = ch.id
-            status = "$reason, đang đo lại các nguồn…"
-            reloadTick++
         } else {
             status = "Kênh không dùng được ($reason). Bấm ↑/↓ để đổi kênh."
             showInfo = true
             infoTick++
+            onResult(ch, false, null)
         }
     }
 
@@ -146,7 +140,7 @@ fun PlayerScreen(
     }
 
     // Đổi kênh: thử các link song song, chọn link chạy được rồi mới phát
-    LaunchedEffect(list, index, reloadTick) {
+    LaunchedEffect(list, index) {
         val ch = list[index]
         status = "Đang tìm nguồn tốt nhất (${ch.urls.size} link)…"
         showInfo = true
