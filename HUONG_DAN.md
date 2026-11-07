@@ -45,6 +45,12 @@ Mặc định app nạp danh sách công khai của iptv-org (kênh Việt Nam).
 - **Link tốt nhất làm mặc định**: mỗi link có điểm chất lượng (tốc độ tải đoạn video + băng thông khai báo). Khi mở kênh, app đo lại vài link hàng đầu và phát link điểm cao nhất; các link còn lại là dự phòng, xếp theo điểm. Link lỗi 1 lần chưa bị loại, lỗi 2 lần liên tục mới coi là chết. Hết link thì app tự đo lại 1 lượt trước khi báo kênh không dùng được.
 - **Bổ sung nguồn cho kênh chết**: sau khi kiểm tra, nếu còn kênh không có link sống, app tự tìm thêm playlist trên GitHub (tối đa 12 giờ/lần, có thể tắt ở Cài đặt). Link tìm được ưu tiên gộp vào đúng các kênh đang chết, kể cả kênh thể thao quốc tế. Tìm rộng hơn (thêm file .m3u8, nhiều từ khóa) và tự bỏ nguồn tìm được đã bị xóa (lỗi 404). Nên nhập Token GitHub để tìm được nhiều hơn.
 
+## Bản 2.4
+
+- **Nhóm VTV** chỉ có 12 kênh: VTV1…VTV10, VTV5 Tây Nam Bộ, VTV5 Tây Nguyên. Kênh nước ngoài tên giống (HTV Houston, VTV…) không còn lọt vào VTV hay Địa phương.
+- **Chống trùng kênh**: các cách viết khác nhau của cùng một kênh (Da Nang TV 1 / Đà Nẵng TV1 / Truyền hình Đà Nẵng 01…) được gộp làm một, ưu tiên hiện tên có dấu.
+- **Logo**: kênh không có logo hiện ô màu kèm chữ cái đầu. Muốn tự đặt logo, mở `app/src/main/assets/logos.txt` bằng Notepad, thêm mỗi dòng `Tên kênh|link ảnh logo`, rồi build lại.
+
 ## Vì sao nhẹ và mượt
 
 - Kotlin + Jetpack Compose, trình phát Media3 ExoPlayer chỉ nạp HLS.

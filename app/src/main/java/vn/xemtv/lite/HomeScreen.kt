@@ -189,6 +189,26 @@ private fun Pill(
     ) { Text(text, fontSize = if (small) 15.sp else 18.sp, color = if (enabled) textColor else Muted.copy(alpha = 0.5f), maxLines = 1) }
 }
 
+/** Có logo thì hiện logo; không có (hoặc tải lỗi) thì hiện ô màu riêng của kênh kèm chữ cái đầu. */
+@Composable
+private fun LogoBox(c: Channel) {
+    var failed by remember(c.logo) { mutableStateOf(false) }
+    if (c.logo.isNotBlank() && !failed) {
+        AsyncImage(
+            model = c.logo, contentDescription = c.name, modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit, onError = { failed = true },
+        )
+    } else {
+        val hue = ((c.name.hashCode().toLong() and 0x7fffffffL) % 360L).toFloat()
+        val words = c.name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val initials = if (words.size >= 2) words.take(3).joinToString("") { it.first().uppercase() } else c.name.take(4).uppercase()
+        Box(
+            Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(Color.hsv(hue, 0.45f, 0.55f)),
+            contentAlignment = Alignment.Center,
+        ) { Text(initials, fontSize = 22.sp, color = White, maxLines = 1) }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
@@ -208,11 +228,7 @@ private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Un
     ) {
         Text("$number", Modifier.align(Alignment.Start), fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
         Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
-            if (c.logo.isNotBlank()) {
-                AsyncImage(c.logo, c.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            } else {
-                Text(c.name.take(2).uppercase(), fontSize = 26.sp, color = Muted)
-            }
+            LogoBox(c)
         }
         Spacer(Modifier.height(6.dp))
         Text(

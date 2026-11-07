@@ -1,5 +1,6 @@
 LICH SU PHIEN BAN (so phien ban hien tren tieu de app: "Xem TV Lite vX.Y")
 
+2.4  Nhom VTV chi con dung 12 kenh (VTV1-VTV10, VTV5 Tay Nam Bo, VTV5 Tay Nguyen); kenh "VTV/HTV..." nuoc ngoai (HTV Houston...) khong con lot vao VTV/Dia phuong; nguon tu tim loc chat hon. Chong trung kenh dia phuong (Da Nang TV 1 = Da Nang TV1 = Truyen hinh Da Nang 01...), uu tien ten co dau. Kenh khong co logo hien o mau rieng kem chu cai dau; them file assets/logos.txt de tu dat logo.
 2.3  Nhom: "VTV" chi con kenh VTV; them nhom "Thiet yeu" (ANTV, QPVN, TVB, Vietnam Today...) ngay sau VTV. Ket qua kiem tra kenh LUU MAI (khong con 6 gio), chi doi khi ban bam Kiem tra lai. Nhom Phim chi giu kenh tieng Viet. Moi link co diem chat luong: link tot nhat lam mac dinh, link du phong xep theo chat luong; loi 1 lan khong bi loai, loi 2 lan lien tiep moi coi la chet; het link thi do lai 1 luot truoc khi bo cuoc. Tu tim them nguon cho kenh chet (moi 12 gio, co nut tat), tim rong hon (them .m3u8, nhieu tu khoa), bo nguon tu tim da bi xoa (404). Cai dat: them "Thu lai cac kenh dang chet".
 2.2  O nhap link nhom moi co san https://.
 2.1  Bo kenh radio/audio (VOV...). Cai dat: Kiem tra -> Xuong -> Tim nguon moi; nhap nhom moi o hop thoai rieng tren dinh man hinh (khong bi ban phim che).

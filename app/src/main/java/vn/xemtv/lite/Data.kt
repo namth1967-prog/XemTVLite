@@ -53,6 +53,8 @@ data class Source(
 private class Entry(val name: String, val logo: String, val url: String, val group: String = "", val tvgId: String = "")
 
 // Nguồn tự tìm được chỉ giữ kênh có dấu hiệu Việt Nam
+/** Dấu hiệu Việt Nam chặt: không chứa vtv/htv/vtc… (các chữ này cũng có ở kênh nước ngoài). */
+val KEEP_STRICT = Regex("viet|truyen hinh|thuyet minh|long tieng|\\bvn\\b|\\.vn\\b|vietsub|k\\+|bong da viet")
 val KEEP_RE = Regex("vtv|htv|vtc|thvl|sctv|antv|vov|viet|truyen hinh|thuyet minh|long tieng|\\bvn\\b|\\.vn\\b|vietsub|vtvcab|k\\+|bong da viet")
 private const val FT = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists"
 private const val ORG = "https://iptv-org.github.io/iptv/categories"
@@ -126,9 +128,33 @@ private val PROVINCES = listOf(
     "hue", "tien giang", "tra vinh", "tuyen quang", "vinh long", "vinh phuc", "yen bai", "ho chi minh", "tphcm", "sai gon",
 )
 private val PROVINCE_RE = Regex("(?:^|[^a-z])(?:${PROVINCES.joinToString("|")})(?:[^a-z]|$)")
-private val LOCAL_ABBR_RE = Regex("^(?:thvl|htv|btv|brt|la\\s*34|dnrtv|dntv|hanoitv|thdt|thtg|thbt|thct|thcm|qrt|trt|prt|drt|bltv|hgtv|ctv)(?![a-z])")
-// Nhóm "VTV" chỉ chứa kênh VTV. Các kênh khác (ANTV, QPVN, TVB, Vietnam Today…) vào nhóm "Thiết yếu".
-private val NATIONAL_RE = Regex("^vtv")
+
+// ---------- Khóa chống trùng kênh ----------
+// Gộp các cách viết khác nhau của cùng một kênh: "Da Nang TV 1" = "Đà Nẵng TV1" = "Truyền hình Đà Nẵng 01"…
+private val PROV_JOIN = Regex("(?<![a-z0-9])(?:${PROVINCES.sortedByDescending { it.length }.joinToString("|")})(?![a-z0-9])")
+private val NOISE2 = NOISE + setOf("truyen", "hinh", "dai", "ptth", "thtp")
+private val TV_NUM = Regex("^tv0*(\\d+)$")
+
+fun dedupeKey(name: String): String {
+    val f = PROV_JOIN.replace(fold(canonicalName(name))) { it.value.replace(" ", "") }   // "can tho" -> "cantho"
+    return f.split(Regex("[^a-z0-9]+"))
+        .filter { it.isNotEmpty() && it !in NOISE2 }
+        .map { w ->
+            val m = TV_NUM.find(w)
+            if (m != null) m.groupValues[1]                                                // "tv1" -> "1"
+            else if (w.all { it.isDigit() }) w.trimStart('0').ifEmpty { "0" } else w     // "03" -> "3"
+        }
+        .filter { it !in NOISE2 }
+        .joinToString(" ") { singular(it) }
+}
+
+private fun hasAccent(s: String) = fold(s) != s.lowercase()
+// Viết tắt đài địa phương chỉ được nhận khi theo sau là số / vài hậu tố quen thuộc (HTV7, THVL1, HTV Thể thao…).
+// Nhờ vậy "HTV Houston", "CTV" (Canada), "TRT" (Thổ Nhĩ Kỳ)… không lọt vào nhóm Địa phương.
+private val LOCAL_ABBR_RE = Regex("^(?:thvl|htv|btv|brt|la\\s*34|dnrtv|dntv|hanoitv|thdt|thtg|thbt|thct|thcm|qrt|prt|drt|bltv|hgtv)[\\s\\-_.]*\\d{0,2}(?:[\\s\\-_.]+(?:the thao|sports?|phim|movies?|co[\\s.]*op[\\s\\-]*mart|co\\s*mart|news|plus))?[\\s\\-_.]*\$")
+// Nhóm "VTV" chỉ có đúng 12 kênh: VTV1..VTV10, VTV5 Tây Nam Bộ, VTV5 Tây Nguyên. Kênh "VTV…" khác (nước ngoài) KHÔNG vào đây.
+// Các kênh nhà nước khác (ANTV, QPVN, TVB, Vietnam Today…) vào nhóm "Thiết yếu".
+private val NATIONAL_RE = Regex("^(?:vtv(?:[1-9]|10)|vtv5 tay (?:nguyen|nam bo))\$")
 private val ESSENTIAL_RE = Regex("^(?:antv|an ninh|qptv|qpvn|quoc phong|vnews|vov|vtc|quoc hoi|thong tan xa|tvb|viet\\s*nam\\s*today)")
 
 fun classifyVn(name: String): String {
@@ -163,7 +189,8 @@ private fun isRadio(name: String, group: String, url: String) =
 
 /** Kênh có dấu hiệu tiếng Việt: tvg-id đuôi .vn hoặc tên/nhóm có từ khóa Việt Nam. */
 private fun isVietnamese(e: Entry) =
-    e.tvgId.contains(".vn", true) || KEEP_RE.containsMatchIn(fold(e.name + " " + e.group))
+    e.tvgId.contains(".vn", true) || KEEP_STRICT.containsMatchIn(fold(e.name + " " + e.group)) ||
+        classifyVn(canonicalName(e.name)) != G_OTHER
 
 private val attrRegex = Regex("""([\w-]+)="([^"]*)"""")
 
@@ -309,13 +336,18 @@ class Repo(context: Context) {
     /** key kênh -> nhóm, của các kênh đang thiếu link sống. */
     private fun wantedGroups(): Map<String, String> {
         val m = HashMap<String, String>()
-        for (id in wanted) { val i = id.indexOf('|'); if (i > 0) m[id.substring(i + 1)] = id.substring(0, i) }
+        for (id in wanted) { val i = id.indexOf('|'); if (i > 0) m[dedupeKey(id.substring(i + 1))] = id.substring(0, i) }
         return m
     }
 
     private fun filterFor(s: Source, list: List<Entry>, wantedKeys: Set<String>): List<Entry> {
         var l = list
-        if (s.discovered) l = l.filter { KEEP_RE.containsMatchIn(fold(it.name + " " + it.group)) || channelKey(it.name) in wantedKeys }
+        if (s.discovered) l = l.filter { e ->
+            // Nguồn tự tìm: chỉ giữ kênh phân loại được là kênh VN, hoặc có dấu hiệu VN rõ ràng, hoặc là kênh đang thiếu link
+            classifyVn(canonicalName(e.name)) != G_OTHER ||
+                KEEP_STRICT.containsMatchIn(fold(e.name + " " + e.group)) ||
+                dedupeKey(e.name) in wantedKeys
+        }
         if (s.mode == "sports") l = l.filter { SPORT_RE.containsMatchIn(fold(it.name + " " + it.group)) }
         if (s.mode == "vn") l = l.filter { isVietnamese(it) }
         if (s.limit > 0) l = l.take(s.limit)
@@ -348,22 +380,39 @@ class Repo(context: Context) {
         else file(s).takeIf { it.exists() }?.let { filterFor(s, parseM3u(it.readText()), wantedGroups().keys) } ?: emptyList()
     } catch (e: Exception) { emptyList() }
 
+    /** assets/logos.txt: mỗi dòng "Tên kênh|link logo" (bỏ qua dòng bắt đầu bằng #). */
+    private val logoMap: Map<String, String> by lazy {
+        try {
+            ctx.assets.open("logos.txt").bufferedReader().readLines()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('|') }
+                .associate { l -> dedupeKey(l.substringBefore('|')) to l.substringAfter('|').trim() }
+                .filter { it.key.isNotEmpty() && it.value.startsWith("http", true) }
+        } catch (e: Exception) { emptyMap() }
+    }
+
     private fun merge(parts: List<Pair<Source, List<Entry>>>): List<Channel> {
         val map = LinkedHashMap<String, Channel>()
         val wantedGroup = wantedGroups()
         for ((s, entries) in parts) for (e in entries) {
             if (isRadio(e.name, e.group, e.url)) continue
             val key = channelKey(e.name)
-            if (key.isEmpty()) continue
+            val dk = dedupeKey(e.name)
+            if (key.isEmpty() || dk.isEmpty()) continue
             val display = canonicalName(e.name)
-            val group = (if (s.discovered) wantedGroup[key] else null) ?: if (s.auto) classifyVn(display) else s.name
-            val id = "$group|$key"
-            val cur = map[id]
-            if (cur == null) map[id] = Channel(id, display, e.logo, group, listOf(e.url))
-            else if (e.url !in cur.urls && cur.urls.size < MAX_LINKS)
-                map[id] = cur.copy(logo = cur.logo.ifBlank { e.logo }, urls = cur.urls + e.url)
+            val group = (if (s.discovered) wantedGroup[dk] else null) ?: if (s.auto) classifyVn(display) else s.name
+            val mk = "$group|$dk"                 // khóa gộp kênh trùng
+            val cur = map[mk]
+            if (cur == null) map[mk] = Channel("$group|$key", display, e.logo, group, listOf(e.url))   // id giữ như cũ -> không mất yêu thích
+            else {
+                val urls = if (e.url !in cur.urls && cur.urls.size < MAX_LINKS) cur.urls + e.url else cur.urls
+                val name = if (hasAccent(display) && !hasAccent(cur.name)) display else cur.name       // ưu tiên tên có dấu
+                map[mk] = cur.copy(name = name, logo = cur.logo.ifBlank { e.logo }, urls = urls)
+            }
         }
-        val (auto, user) = map.values.partition { it.group in AUTO_GROUPS }
+        // Logo tự đặt trong assets/logos.txt luôn được ưu tiên
+        val withLogo = map.values.map { c -> logoMap[dedupeKey(c.name)]?.let { c.copy(logo = it) } ?: c }
+        val (auto, user) = withLogo.partition { it.group in AUTO_GROUPS }
         return auto.sortedBy { natKey(it.name) } + user
     }
 

@@ -1,0 +1,6 @@
+# Logo tự đặt cho kênh. Mỗi dòng:  Tên kênh|https://link-anh-logo.png
+# - Tên kênh viết có dấu hay không dấu, hoa hay thường đều được (VD: "Đà Nẵng TV1" khớp "Da Nang TV 1").
+# - Link phải là địa chỉ ảnh (png/jpg/webp) bắt đầu bằng http hoặc https.
+# - Dòng bắt đầu bằng # là ghi chú, bị bỏ qua. Logo ở đây luôn được ưu tiên hơn logo trong danh sách nguồn.
+# Ví dụ (bỏ dấu # ở đầu dòng và thay link thật):
+# VTV1|https://example.com/vtv1.png
