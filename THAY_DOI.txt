@@ -1,5 +1,6 @@
 LICH SU PHIEN BAN (so phien ban hien tren tieu de app: "Xem TV Lite vX.Y")
 
+2.8  Sua: menu giu OK khong con tu dong dong khi nha phim (bo qua phim OK cho den khi nha han). O nhap: phim Xong/Next, len/xuong va Back deu an ban phim ao that su roi chuyen focus ra khoi o.
 2.7  Menu kenh chi mo bang cach NHAN VA GIU phim OK (mo ngay khi dang giu); bo phim Menu. Bam OK nhanh van la mo kenh.
 2.6  Sua: giu OK tren remote gio mo menu kenh (mo khi nha phim); phim Menu mo menu ngay; o nhap ten nhom/link/token thoat focus duoc bang phim len/xuong va phim Next/Xong tren ban phim ao.
 2.5  Nhan giu mot kenh -> hien menu: them/bo yeu thich, Di chuyen kenh (sang nhom khac), Xoa kenh. Kenh da xoa/di chuyen duoc nho mai; Cai dat -> Khoi phuc de hoan lai.

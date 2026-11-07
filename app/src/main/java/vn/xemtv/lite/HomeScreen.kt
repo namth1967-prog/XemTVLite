@@ -39,6 +39,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusDirection
@@ -201,7 +203,21 @@ private fun ChannelMenu(
     val firstGroup = groups.firstOrNull { it != c.group }
     var started by remember { mutableStateOf(false) }
     LaunchedEffect(picking) { if (started) runCatching { first.requestFocus() }; started = true }
+    // Menu mở ra khi người dùng còn đang GIỮ phím OK: bỏ qua mọi phím OK (kể cả phím lặp và lúc nhả)
+    // cho tới khi không còn phím OK nào trong 350 ms, tránh bấm nhầm vào mục đầu rồi tự đóng menu.
+    var armed by remember { mutableStateOf(false) }
+    val lastOk = remember { LongArray(1) { System.currentTimeMillis() } }
+    LaunchedEffect(Unit) {
+        while (!armed) {
+            delay(100)
+            if (System.currentTimeMillis() - lastOk[0] > 350) armed = true
+        }
+    }
     AlertDialog(
+        modifier = Modifier.onPreviewKeyEvent { ev ->
+            val ok = ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter
+            if (ok && !armed) { lastOk[0] = System.currentTimeMillis(); true } else false
+        },
         onDismissRequest = { if (picking) picking = false else onDismiss() },
         containerColor = Color(0xFF151C2E),
         title = {
@@ -468,28 +484,42 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
 
 
 // ---------- Ô nhập trên TV: thoát focus được ----------
-/** Ô nhập văn bản mặc định nuốt phím ↑/↓ nên remote không rời ô được: ở đây ↑/↓ chuyển focus sang ô/nút kế bên. */
+private fun hideKeyboard(view: android.view.View) {
+    (view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+        ?.hideSoftInputFromWindow(view.windowToken, 0)
+}
+
+/**
+ * Ô nhập văn bản mặc định nuốt phím ↑/↓ và Back nên remote không rời ô được. Ở đây:
+ * ↑/↓ = ẩn bàn phím rồi chuyển focus sang ô/nút kế bên; Back (khi bàn phím đã ẩn mà focus còn kẹt trong ô) = rời ô.
+ */
 @Composable
 private fun Modifier.leaveOnDpad(): Modifier {
     val fm = LocalFocusManager.current
+    val view = LocalView.current
+    var backDown by remember { mutableStateOf(false) }
     return this.onPreviewKeyEvent { ev ->
-        if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-        when (ev.key) {
-            Key.DirectionDown -> { fm.moveFocus(FocusDirection.Down); true }
-            Key.DirectionUp -> { fm.moveFocus(FocusDirection.Up); true }
+        when {
+            ev.key == Key.Back -> {
+                if (ev.type == KeyEventType.KeyDown) {
+                    backDown = true; hideKeyboard(view); fm.moveFocus(FocusDirection.Down); true
+                } else { val was = backDown; backDown = false; was }   // nuốt cả lúc nhả Back để hộp thoại không đóng theo
+            }
+            ev.type != KeyEventType.KeyDown -> false
+            ev.key == Key.DirectionDown -> { hideKeyboard(view); fm.moveFocus(FocusDirection.Down); true }
+            ev.key == Key.DirectionUp -> { hideKeyboard(view); fm.moveFocus(FocusDirection.Up); true }
             else -> false
         }
     }
 }
 
-private val nextOptions = KeyboardOptions(imeAction = ImeAction.Next)
+private val nextOptions = KeyboardOptions(imeAction = ImeAction.Done)
 
-/** Phím Next/Done trên bàn phím ảo cũng chuyển focus xuống ô/nút kế tiếp. */
+/** Phím Xong/Next trên bàn phím ảo: ẩn bàn phím rồi chuyển focus xuống ô/nút kế tiếp. */
 @Composable
 private fun nextActions(): KeyboardActions {
     val fm = LocalFocusManager.current
-    return KeyboardActions(
-        onNext = { fm.moveFocus(FocusDirection.Down) },
-        onDone = { fm.moveFocus(FocusDirection.Down) },
-    )
+    val view = LocalView.current
+    val leave = { hideKeyboard(view); fm.moveFocus(FocusDirection.Down); Unit }
+    return KeyboardActions(onNext = { leave() }, onDone = { leave() })
 }
