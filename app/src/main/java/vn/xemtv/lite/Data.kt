@@ -32,7 +32,8 @@ const val G_HTVC = "HTVC"
 const val G_SPORT = "Thể thao"
 const val G_MOVIE = "Phim"
 const val G_OTHER = "Khác"
-val VN_GROUPS = listOf(G_NATIONAL, G_LOCAL, G_VTVCAB, G_SCTV, G_HTVC)
+// Thứ tự nhóm = thứ tự đánh số kênh: VTV, VTVcab, SCTV, HTVC, Địa phương, rồi Thể thao, Phim, nhóm của bạn, Khác
+val VN_GROUPS = listOf(G_NATIONAL, G_VTVCAB, G_SCTV, G_HTVC, G_LOCAL)
 private val AUTO_GROUPS = VN_GROUPS + G_OTHER
 
 private const val MAX_LINKS = 12
@@ -139,7 +140,21 @@ fun classifyVn(name: String): String {
 }
 
 private fun natKey(s: String) =
-    fold(s).replace(Regex("\\d+")) { it.value.padStart(5, '0') }
+    fold(s).replace(Regex("\\s+"), "").replace(Regex("\\d+")) { it.value.padStart(5, '0') }
+
+/** Sắp theo nhóm (đúng thứ tự đánh số); trong nhóm giữ nguyên thứ tự (VTV1, VTV2, … VTV10). */
+fun orderChannels(list: List<Channel>, userGroups: List<String>): List<Channel> {
+    val order = VN_GROUPS + listOf(G_SPORT, G_MOVIE) + userGroups + G_OTHER
+    val rank = HashMap<String, Int>()
+    order.forEachIndexed { i, g -> if (g !in rank) rank[g] = i }
+    return list.sortedBy { rank[it.group] ?: order.size }
+}
+
+// Kênh radio / chỉ có âm thanh (VOV, FM, podcast…) -> bỏ hết
+private val RADIO_RE = Regex("(^|[^a-z])(radio|fm|podcast|audio)([^a-z]|$)|^vov(?!\\s*tv)(?![a-z])|tieng noi viet nam|dai tieng noi")
+private val AUDIO_URL_RE = Regex("\\.(mp3|aac|ogg|m4a|opus|wav)(\\?|$)", RegexOption.IGNORE_CASE)
+private fun isRadio(name: String, group: String, url: String) =
+    RADIO_RE.containsMatchIn(fold(name)) || fold(group).contains("radio") || AUDIO_URL_RE.containsMatchIn(url)
 
 private val attrRegex = Regex("""([\w-]+)="([^"]*)"""")
 
@@ -272,6 +287,7 @@ class Repo(context: Context) {
     private fun merge(parts: List<Pair<Source, List<Entry>>>): List<Channel> {
         val map = LinkedHashMap<String, Channel>()
         for ((s, entries) in parts) for (e in entries) {
+            if (isRadio(e.name, e.group, e.url)) continue
             val key = channelKey(e.name)
             if (key.isEmpty()) continue
             val display = canonicalName(e.name)

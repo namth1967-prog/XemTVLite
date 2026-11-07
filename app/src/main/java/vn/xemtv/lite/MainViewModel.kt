@@ -130,7 +130,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (ok && url != null) {
             repo.okStamps.add(listOf(url)); repo.deadStamps.remove(listOf(url))
         } else if (!ok) {
-            repo.okStamps.remove(c.urls); repo.deadStamps.add(c.urls)
+            val bad = if (url != null) listOf(url) else c.urls
+            repo.okStamps.remove(bad); repo.deadStamps.add(bad)
         }
         repo.okStamps.save(); repo.deadStamps.save()
         _ui.update { it.copy(ok = repo.okStamps.fresh(), dead = repo.deadStamps.fresh()) }

@@ -1,6 +1,7 @@
 package vn.xemtv.lite
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -20,6 +21,15 @@ private val Colors = darkColorScheme(
 )
 
 class MainActivity : ComponentActivity() {
+    // Phím số: chuyển cho màn hình đang mở (danh sách hoặc trình phát) để chọn kênh theo số
+    override fun dispatchKeyEvent(e: KeyEvent): Boolean {
+        if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount == 0) {
+            val d = digitOf(e.keyCode)
+            if (d != null) { KeyBus.digits.tryEmit(d); return true }
+        }
+        return super.dispatchKeyEvent(e)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -34,17 +44,20 @@ class MainActivity : ComponentActivity() {
 private fun App(vm: MainViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
 
-    val shown = remember(ui.alive, ui.favorites, ui.query, ui.group) {
-        ui.alive.asSequence()
-            .filter {
-                when (ui.group) {
-                    "" -> true
-                    FAV -> it.id in ui.favorites
-                    else -> it.group == ui.group
-                }
+    // Thứ tự và SỐ KÊNH: VTV, VTVcab, SCTV, HTVC, Địa phương, Thể thao, Phim, nhóm của bạn, Khác
+    val ordered = remember(ui.alive, ui.sources) {
+        orderChannels(ui.alive, ui.sources.filter { !it.auto }.map { it.name })
+    }
+    val numbers = remember(ordered) { ordered.withIndex().associate { it.value.id to it.index + 1 } }
+
+    val shown = remember(ordered, ui.favorites, ui.group) {
+        ordered.filter {
+            when (ui.group) {
+                "" -> true
+                FAV -> it.id in ui.favorites
+                else -> it.group == ui.group
             }
-            .filter { ui.query.isBlank() || fold(it.name).contains(fold(ui.query)) }
-            .toList()
+        }
     }
 
     var playList by remember { mutableStateOf<List<Channel>>(emptyList()) }
@@ -55,6 +68,8 @@ private fun App(vm: MainViewModel = viewModel()) {
         PlayerScreen(
             channels = playList,
             startIndex = playIndex,
+            allChannels = ordered,
+            numbers = numbers,
             rank = vm::rank,
             onResult = vm::report,
             onExit = { playIndex = -1 },
@@ -63,6 +78,13 @@ private fun App(vm: MainViewModel = viewModel()) {
         HomeScreen(
             ui = ui,
             shown = shown,
+            numbers = numbers,
+            onPlayNumber = { n ->
+                ordered.firstOrNull { numbers[it.id] == n }?.let { t ->
+                    val i = shown.indexOf(t)
+                    if (i >= 0) { playList = shown; playIndex = i } else { playList = ordered; playIndex = ordered.indexOf(t) }
+                }
+            },
             onGroup = vm::setGroup,
             onFav = vm::toggleFav,
             onReload = vm::load,

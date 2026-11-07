@@ -1,70 +1,85 @@
 @echo off
-chcp 65001 > nul
-cls
+setlocal EnableExtensions
+chcp 65001 >nul
+cd /d "%~dp0"
+title Upload len GitHub
+
+rem ---- doc so phien ban tu app\build.gradle.kts ----
+set "VER=?"
+for /f "tokens=2 delims==" %%a in ('findstr /c:"versionName" app\build.gradle.kts') do set "VER=%%a"
+set VER=%VER: =%
+set VER=%VER:"=%
+
 echo ==================================================
-echo   CONG CU TU DONG UPLOAD FOLDER LEN GITHUB
+echo   UPLOAD XEM TV LITE  -  PHIEN BAN %VER%
 echo ==================================================
 echo.
 
-:: Kiem tra xem Git da duoc cai dat chua
-where git >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [LOI] May tinh cua ban chua cai dat Git!
-    echo Vui long tai va cai dat Git tai: https://git-scm.com/
-    goto END
+where git >nul 2>&1
+if errorlevel 1 (
+  echo [LOI] Chua cai git. Tai tai git-scm.com roi chay lai.
+  goto :fail
 )
-
-:: Kiem tra xem da khoi tao Git repository chua
 if not exist ".git" (
-    echo [KHOI TAO] Thu muc nay chua tung ket noi GitHub.
-    echo.
-    set /p REPO_URL="Dán URL Repository cua ban vao day (Click chuot phai de Dan): "
-    
-    if "%REPO_URL%"=="" (
-        echo [LOI] URL khong duoc de trong!
-        goto END
-    )
-    
-    echo.
-    echo 1. Dang khoi tao Git...
-    git init
-    
-    echo 2. Dang ket noi den Repository...
-    git remote add origin %REPO_URL%
-    
-    echo 3. Dang chuyen nhanh chinh thanh 'main'...
-    git branch -M main
-) else (
-    echo [THONG BAO] Da tim thay ket noi Git co san.
+  echo [LOI] Thu muc nay chua phai kho git. Hay chay file nay trong thu muc XemTVLite da clone tu GitHub.
+  goto :fail
+)
+
+rem ---- 1. Dam bao .gitignore chan cac file nang/khong can ----
+call :ensure ".tools/"
+call :ensure "build.log"
+call :ensure ".kotlin/"
+call :ensure ".gradle/"
+call :ensure "build/"
+call :ensure "local.properties"
+call :ensure "*.apk"
+call :ensure "*.zip"
+
+rem ---- 2. Go cac file do ra khoi git (neu lo bi theo doi), file that tren may van con ----
+git rm -r --cached --ignore-unmatch -q .tools build.log .kotlin local.properties *.apk *.zip >nul 2>&1
+
+rem ---- 3. Commit ----
+git add -A
+git diff --cached --quiet
+if not errorlevel 1 (
+  echo [..] Khong co thay doi moi de commit. Thu day cac commit con lai len GitHub...
+  goto :push
+)
+git commit -q -m "Phien ban %VER%"
+if errorlevel 1 goto :fail
+echo [OK] Da commit: Phien ban %VER%
+
+rem ---- 4. Push ----
+:push
+echo [..] Dang day len GitHub...
+git push
+if errorlevel 1 (
+  echo.
+  echo [LOI] Push that bai. Chup man hinh doan loi o tren gui cho Claude.
+  goto :fail
 )
 
 echo.
-set /p COMMIT_MSG="Nhap ghi chu cho lan upload nay (Nhan Enter de de mac dinh): "
-if "%COMMIT_MSG%"=="" (
-    set COMMIT_MSG="Auto upload folder via script"
+echo ==================================================
+echo   XONG. Phien ban %VER% da len GitHub.
+echo   Mo trang Actions, doi dau tich xanh roi tai
+echo   APK ten XemTVLite-v%VER% o muc Artifacts.
+echo ==================================================
+set "URL="
+for /f "delims=" %%u in ('git remote get-url origin') do set "URL=%%u"
+if defined URL (
+  set URL=%URL:.git=%
+  start "" "%URL%/actions"
 )
+pause
+exit /b 0
 
-echo.
-echo 4. Dang chuan bi cac file...
-git add .
+:ensure
+findstr /x /c:"%~1" ".gitignore" >nul 2>&1
+if errorlevel 1 echo %~1>> ".gitignore"
+exit /b 0
 
-echo 5. Dang tao diem luu (Commit)...
-git commit -m "%COMMIT_MSG%"
-
-echo 6. Dang tai len (Push) len GitHub...
-echo (Neu co cua so hien len, vui long chon 'Sign in with your browser')
-git push -u origin main
-
-if %errorlevel% equ 0 (
-    echo.
-    echo ==================================================
-    echo   THANH CONG! Folder da duoc upload len GitHub.
-    echo ==================================================
-) else (
-    echo.
-    echo [LOI] Co loi xay ra khi push code. Vui long kiem tra lai quyen truy cap hoac internet.
-)
-
-:END
+:fail
 echo.
 pause
+exit /b 1

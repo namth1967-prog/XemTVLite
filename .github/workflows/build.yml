@@ -15,8 +15,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Doc so phien ban
+        id: ver
+        run: echo "v=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
       - run: gradle assembleRelease --no-daemon
+      - name: Dat ten APK theo phien ban
+        run: cp app/build/outputs/apk/release/app-release.apk "XemTVLite-v${{ steps.ver.outputs.v }}.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: XemTVLite-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: XemTVLite-v${{ steps.ver.outputs.v }}
+          path: XemTVLite-v*.apk

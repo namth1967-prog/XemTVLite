@@ -1,5 +1,6 @@
 package vn.xemtv.lite
 
+import android.view.Gravity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -20,17 +21,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 
 private val White = Color.White
 private val Muted = Color(0xFFB8C0D0)
@@ -51,6 +61,8 @@ private fun tfColors() = TextFieldDefaults.colors(
 fun HomeScreen(
     ui: UiState,
     shown: List<Channel>,
+    numbers: Map<String, Int>,
+    onPlayNumber: (Int) -> Unit,
     onGroup: (String) -> Unit,
     onFav: (Channel) -> Unit,
     onReload: () -> Unit,
@@ -66,6 +78,14 @@ fun HomeScreen(
     onPlay: (Channel) -> Unit,
 ) {
     var showSettings by remember { mutableStateOf(false) }
+    var numBuf by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { KeyBus.digits.collect { d -> if (numBuf.length < 4) numBuf += d.toString() } }
+    LaunchedEffect(numBuf) {
+        if (numBuf.isEmpty()) return@LaunchedEffect
+        val n = numBuf.toInt()
+        if (n * 10 > numbers.size) { onPlayNumber(n); numBuf = "" }
+        else { delay(1_500); onPlayNumber(n); numBuf = "" }
+    }
     val ctx = LocalContext.current
     val ver = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
 
@@ -109,9 +129,15 @@ fun HomeScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     items(shown, key = { it.id }) { c ->
-                        ChannelCard(c, c.id in ui.favorites, { onPlay(c) }, { onFav(c) })
+                        ChannelCard(c, numbers[c.id] ?: 0, c.id in ui.favorites, { onPlay(c) }, { onFav(c) })
                     }
                 }
+            }
+            if (numBuf.isNotEmpty()) {
+                Text(
+                    numBuf, Modifier.align(Alignment.TopEnd).background(Color(0xCC000000)).padding(horizontal = 24.dp, vertical = 12.dp),
+                    fontSize = 44.sp, color = Color(0xFFFFC857),
+                )
             }
             val err = ui.error
             when {
@@ -139,12 +165,13 @@ private fun Pill(
     enabled: Boolean = true,
     textColor: Color = White,
     small: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
     Box(
-        Modifier
+        modifier
             .clip(shape)
             .onFocusChanged { focused = it.isFocused }
             .border(3.dp, if (focused) White else Color.Transparent, shape)
@@ -162,7 +189,7 @@ private fun Pill(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChannelCard(c: Channel, fav: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "scale")
     val shape = RoundedCornerShape(12.dp)
@@ -177,6 +204,7 @@ private fun ChannelCard(c: Channel, fav: Boolean, onClick: () -> Unit, onLong: (
             .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Text("$number", Modifier.align(Alignment.Start), fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
         Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
             if (c.logo.isNotBlank()) {
                 AsyncImage(c.logo, c.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
@@ -215,8 +243,8 @@ private fun SettingsDialog(
     onClearFound: () -> Unit,
 ) {
     var tok by remember { mutableStateOf(ui.ghToken) }
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
+    var showAdd by remember { mutableStateOf(false) }
+    val rDiscover = remember { FocusRequester() }
     val scanning = ui.scanTotal > 0
     val divider = Muted.copy(alpha = 0.3f)
     AlertDialog(
@@ -252,7 +280,8 @@ private fun SettingsDialog(
                         label = { Text("Token GitHub (không bắt buộc)") },
                         colors = tfColors(), modifier = Modifier.weight(1f),
                     )
-                    Pill("Kiểm tra", false, enabled = !ui.discovering, small = true, onClick = onCheckToken)
+                    Pill("Kiểm tra", false, enabled = !ui.discovering, small = true,
+                        modifier = Modifier.focusProperties { down = rDiscover }, onClick = onCheckToken)
                     val tm = ui.tokenMsg
                     when {
                         tm == null -> {}
@@ -263,7 +292,8 @@ private fun SettingsDialog(
                 }
                 ui.tokenMsg?.takeIf { it.startsWith("✘") }?.let { Text(it, fontSize = 13.sp, color = Color(0xFFFF9A9A)) }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Pill("Tìm nguồn mới", false, enabled = !ui.discovering, small = true, onClick = onDiscover)
+                    Pill("Tìm nguồn mới", false, enabled = !ui.discovering, small = true,
+                        modifier = Modifier.focusRequester(rDiscover), onClick = onDiscover)
                     Pill("Xóa nguồn tìm được", false, enabled = !ui.discovering && ui.foundCount > 0, small = true, onClick = onClearFound)
                     Text(
                         ui.discoverMsg ?: "Đã có ${ui.foundCount} nguồn",
@@ -272,15 +302,54 @@ private fun SettingsDialog(
                 }
                 HorizontalDivider(color = divider)
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextField(name, { name = it }, singleLine = true, label = { Text("Tên nhóm mới") },
-                        colors = tfColors(), modifier = Modifier.weight(1f))
-                    TextField(url, { url = it }, singleLine = true, label = { Text("Link M3U của nhóm") },
-                        colors = tfColors(), modifier = Modifier.weight(2f))
-                    Pill("Thêm", false, enabled = url.isNotBlank(), small = true) { onAdd(name, url); name = ""; url = "" }
+                SettingRow("Thêm nhóm mới (tên + link M3U)") {
+                    Pill("Thêm…", false, small = true) { showAdd = true }
                 }
             }
         },
         confirmButton = { Pill("Đóng", false, onClick = onDismiss) },
     )
+    if (showAdd) AddGroupDialog({ showAdd = false }) { n, u -> onAdd(n, u); showAdd = false }
+}
+
+/** Hộp thoại nhập nhóm mới: đặt ở ĐỈNH màn hình để bàn phím ảo không che, kèm dấu ✔/✘ báo link đúng sai. */
+@Composable
+private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    // Sẵn "https://" và đặt con trỏ ở cuối để người dùng gõ tiếp phần còn lại
+    var url by remember { mutableStateOf(TextFieldValue("https://", TextRange(8))) }
+    val u = url.text.trim()
+    val bare = u.equals("https://", true) || u.equals("http://", true)
+    val urlOk = !bare && (u.startsWith("http://", true) || u.startsWith("https://", true))
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val view = LocalView.current
+        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        Column(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF151C2E))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Thêm nhóm mới", color = White, fontSize = 20.sp)
+            TextField(name, { name = it }, singleLine = true, label = { Text("1. Tên nhóm") },
+                colors = tfColors(), modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(url, { url = it }, singleLine = true, label = { Text("2. Link M3U (http… hoặc https…)") },
+                    colors = tfColors(), modifier = Modifier.weight(1f))
+                when {
+                    u.isEmpty() || bare -> {}
+                    urlOk -> Text("✔", color = Color(0xFF4CD964), fontSize = 30.sp)
+                    else -> Text("✘", color = Color(0xFFFF6B6B), fontSize = 30.sp)
+                }
+            }
+            if (u.isNotEmpty() && !bare && !urlOk) Text("Link phải bắt đầu bằng http:// hoặc https://", fontSize = 13.sp, color = Color(0xFFFF9A9A))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Thêm nhóm", false, enabled = urlOk, small = true) { onAdd(name, url.text) }
+                Pill("Hủy", false, small = true, onClick = onDismiss)
+            }
+        }
+    }
 }

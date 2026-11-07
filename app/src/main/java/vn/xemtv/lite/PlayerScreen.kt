@@ -22,6 +22,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -38,17 +39,23 @@ import kotlinx.coroutines.delay
 fun PlayerScreen(
     channels: List<Channel>,
     startIndex: Int,
+    allChannels: List<Channel>,
+    numbers: Map<String, Int>,
     rank: suspend (List<String>) -> List<String>,
     onResult: (Channel, Boolean, String?) -> Unit,
     onExit: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    var list by remember { mutableStateOf(channels) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, channels.lastIndex)) }
     var status by remember { mutableStateOf<String?>("Đang tải…") }
     var showInfo by remember { mutableStateOf(true) }
     var infoTick by remember { mutableIntStateOf(0) }
     var candidates by remember { mutableStateOf<List<String>>(emptyList()) }
     var urlIdx by remember { mutableIntStateOf(0) }
+    var readyTick by remember { mutableIntStateOf(0) }
+    var numBuf by remember { mutableStateOf("") }
+    var numMsg by remember { mutableStateOf<String?>(null) }
     val focus = remember { FocusRequester() }
 
     val player = remember {
@@ -81,30 +88,31 @@ fun PlayerScreen(
         }
     }
 
+    // Link hiện tại không dùng được (lỗi / không có tiếng): ghi nhận rồi đổi sang link dự phòng
+    fun tryNext(reason: String) {
+        val ch = list[index]
+        candidates.getOrNull(urlIdx)?.let { onResult(ch, false, it) }
+        val next = urlIdx + 1
+        if (next < candidates.size) {
+            urlIdx = next
+            status = "$reason, đổi sang nguồn ${next + 1}/${candidates.size}…"
+            player.setMediaItem(MediaItem.fromUri(candidates[next]))
+            player.prepare()
+            player.playWhenReady = true
+        } else {
+            status = "Kênh không dùng được ($reason). Bấm ↑/↓ để đổi kênh."
+            showInfo = true
+            infoTick++
+            onResult(ch, false, null)
+        }
+    }
+
     DisposableEffect(player) {
         val l = object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                val next = urlIdx + 1
-                if (next < candidates.size) {
-                    // Link lỗi -> tự đổi sang link dự phòng của cùng kênh
-                    urlIdx = next
-                    status = "Link lỗi, đổi sang nguồn ${next + 1}/${candidates.size}…"
-                    player.setMediaItem(MediaItem.fromUri(candidates[next]))
-                    player.prepare()
-                    player.playWhenReady = true
-                } else {
-                    status = "Kênh hiện không phát được. Bấm ↑/↓ để đổi kênh."
-                    showInfo = true
-                    infoTick++
-                    onResult(channels[index], false, null)
-                }
-            }
+            override fun onPlayerError(error: PlaybackException) { tryNext("Link lỗi") }
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_READY -> {
-                        status = null
-                        candidates.getOrNull(urlIdx)?.let { onResult(channels[index], true, it) }
-                    }
+                    Player.STATE_READY -> { status = null; readyTick++ }
                     Player.STATE_BUFFERING -> if (status == null) status = "Đang đệm…"
                     else -> {}
                 }
@@ -114,9 +122,26 @@ fun PlayerScreen(
         onDispose { player.removeListener(l); player.release() }
     }
 
+    // Đã phát được 2,5 giây: phải có luồng âm thanh dùng được, nếu không coi là kênh chết
+    LaunchedEffect(readyTick) {
+        if (readyTick == 0) return@LaunchedEffect
+        val ch = list[index]
+        val url = candidates.getOrNull(urlIdx)
+        delay(2_500)
+        if (list[index].id != ch.id || candidates.getOrNull(urlIdx) != url) return@LaunchedEffect
+        if (player.playbackState != Player.STATE_READY) return@LaunchedEffect
+        val hasAudio = player.currentTracks.groups.any { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
+        val hasVideo = player.currentTracks.groups.any { it.type == C.TRACK_TYPE_VIDEO && it.isSupported }
+        when {
+            !hasVideo -> tryNext("Chỉ có âm thanh, không có hình")
+            !hasAudio -> tryNext("Không có tiếng")
+            url != null -> onResult(ch, true, url)
+        }
+    }
+
     // Đổi kênh: thử các link song song, chọn link chạy được rồi mới phát
-    LaunchedEffect(index) {
-        val ch = channels[index]
+    LaunchedEffect(list, index) {
+        val ch = list[index]
         status = "Đang tìm nguồn tốt nhất (${ch.urls.size} link)…"
         showInfo = true
         infoTick++
@@ -128,12 +153,32 @@ fun PlayerScreen(
         player.prepare()
         player.playWhenReady = true
     }
+
+    // ----- Chọn kênh bằng phím số -----
+    fun jumpTo(n: Int) {
+        val t = allChannels.firstOrNull { numbers[it.id] == n }
+        if (t == null) { numMsg = "Không có kênh $n"; return }
+        val i = list.indexOfFirst { it.id == t.id }
+        if (i >= 0) index = i
+        else { list = allChannels; index = allChannels.indexOfFirst { it.id == t.id } }
+    }
+    LaunchedEffect(Unit) {
+        KeyBus.digits.collect { d -> if (numBuf.length < 4) numBuf += d.toString() }
+    }
+    LaunchedEffect(numBuf) {
+        if (numBuf.isEmpty()) return@LaunchedEffect
+        val n = numBuf.toInt()
+        if (n * 10 > allChannels.size) { jumpTo(n); numBuf = "" }   // không thể còn số dài hơn -> chuyển ngay
+        else { delay(1_500); jumpTo(n); numBuf = "" }
+    }
+    LaunchedEffect(numMsg) { if (numMsg != null) { delay(2_000); numMsg = null } }
+
     // Tự ẩn thông tin sau 3 giây
     LaunchedEffect(infoTick) { delay(3_000); showInfo = false }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
     fun go(delta: Int) {
-        val n = channels.size
+        val n = list.size
         index = ((index + delta) % n + n) % n
     }
 
@@ -147,6 +192,8 @@ fun PlayerScreen(
                 when (e.key) {
                     Key.DirectionUp, Key.ChannelUp, Key.PageUp -> { go(1); true }
                     Key.DirectionDown, Key.ChannelDown, Key.PageDown -> { go(-1); true }
+                    Key.Enter, Key.NumPadEnter, Key.DirectionCenter ->
+                        if (numBuf.isNotEmpty()) { jumpTo(numBuf.toInt()); numBuf = ""; true } else false
                     else -> false
                 }
             }
@@ -167,6 +214,13 @@ fun PlayerScreen(
                 }
             },
         )
+        if (numBuf.isNotEmpty() || numMsg != null) {
+            Text(
+                numMsg ?: numBuf,
+                Modifier.align(Alignment.TopEnd).padding(32.dp).background(Color(0xAA000000)).padding(horizontal = 24.dp, vertical = 12.dp),
+                fontSize = 48.sp, color = Color(0xFFFFC857),
+            )
+        }
         AnimatedVisibility(showInfo || status != null, Modifier.align(Alignment.BottomStart)) {
             Column(
                 Modifier
@@ -174,7 +228,7 @@ fun PlayerScreen(
                     .background(Color(0xAA000000))
                     .padding(horizontal = 32.dp, vertical = 20.dp)
             ) {
-                Text("${index + 1}/${channels.size}  ${channels[index].name}", fontSize = 22.sp, color = Color.White)
+                Text("${numbers[list[index].id] ?: (index + 1)}   ${list[index].name}", fontSize = 24.sp, color = Color.White)
                 status?.let { Text(it, fontSize = 14.sp, color = Color(0xFFFFC857)) }
             }
         }

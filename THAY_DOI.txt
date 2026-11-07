@@ -1,0 +1,15 @@
+LICH SU PHIEN BAN (so phien ban hien tren tieu de app: "Xem TV Lite vX.Y")
+
+2.2  O nhap link nhom moi co san https://.
+2.1  Bo kenh radio/audio (VOV...). Cai dat: Kiem tra -> Xuong -> Tim nguon moi; nhap nhom moi o hop thoai rieng tren dinh man hinh (khong bi ban phim che).
+2.0  Danh so kenh (VTV, VTVcab, SCTV, HTVC, Dia phuong, The thao, Phim...) + bam phim so de chon kenh. Kenh khong co tieng = kenh chet.
+1.9  Danh so phien ban: ten zip/APK/artifact deu co so (XemTVLite-v1.9...). Them upload_github.bat.
+1.8  Bo o tim kenh; cai dat gon; nut Kiem tra token + dau tick.
+1.7  Logo moi (TV + ang-ten + song), khong con giong YouTube.
+1.6  Nut sang len khi chon bang remote; token hien ro.
+1.5  Them nhom The thao va Phim (kenh truyen hinh).
+1.4  Chi hien kenh da kiem tra con song.
+1.3  Them link goc trong file mau + tu tim playlist tren GitHub.
+1.2  Gop nhieu link cho moi kenh, tu doi link khi loi.
+1.1  Chu trang, phan nhom VTV/Dia phuong/VTVcab/SCTV/HTVC, them link tao nhom rieng.
+1.0  Ban dau.

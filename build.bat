@@ -4,8 +4,13 @@ chcp 65001 >nul
 cd /d "%~dp0"
 title Build Xem TV Lite
 
+set "VER=?"
+for /f "tokens=2 delims==" %%a in ('findstr /c:"versionName" app\build.gradle.kts') do set "VER=%%a"
+set VER=%VER: =%
+set VER=%VER:"=%
+
 echo ==================================================
-echo   BUILD XEM TV LITE - tu dong
+echo   BUILD XEM TV LITE - PHIEN BAN %VER%
 echo   (lan dau mat 10-20 phut vi phai tai thu vien)
 echo ==================================================
 echo.
@@ -86,13 +91,13 @@ if not exist "%APK%" (
   echo [LOI] Build xong nhung khong thay file APK.
   goto :fail_build
 )
-copy /y "%APK%" "XemTVLite.apk" >nul
+copy /y "%APK%" "XemTVLite-v%VER%.apk" >nul
 echo.
 echo ==================================================
 echo   BUILD THANH CONG
-echo   File APK: %~dp0XemTVLite.apk
+echo   File APK: %~dp0XemTVLite-v%VER%.apk
 echo ==================================================
-explorer /select,"%~dp0XemTVLite.apk"
+explorer /select,"%~dp0XemTVLite-v%VER%.apk"
 pause
 exit /b 0
 
