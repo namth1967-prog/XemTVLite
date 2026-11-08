@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +39,7 @@ data class UiState(
     val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
+    val notice: String? = null,                    // thông báo ngắn (VD: kết quả bấm Tải lại)
 ) {
     private val userGroups = sources.filter { !it.auto }.map { it.name }.toSet()
 
@@ -75,14 +77,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val ui: StateFlow<UiState> = _ui.asStateFlow()
     private var scanJob: Job? = null
     private var discoverJob: Job? = null
+    private var noticeJob: Job? = null
+
+    /** Hiện thông báo ngắn ở màn hình chính, tự tắt sau 7 giây. */
+    private fun showNotice(msg: String) {
+        _ui.update { it.copy(notice = msg) }
+        noticeJob?.cancel()
+        noticeJob = viewModelScope.launch { delay(7_000); _ui.update { it.copy(notice = null) } }
+    }
 
     init { load() }
 
     private fun refreshHealth() = _ui.update { it.copy(ok = repo.health.ok(), dead = repo.health.dead()) }
 
-    /** [onFetched]: gọi khi đã nạp xong toàn bộ danh sách (để báo số kênh/link mới). */
-    fun load(onFetched: ((List<Channel>) -> Unit)? = null) {
+    /**
+     * [manual]: do người dùng bấm "Tải lại" -> có thông báo kết quả và thử lại cả các kênh đang chết.
+     * [onFetched]: gọi khi đã nạp xong toàn bộ danh sách (để báo số kênh/link mới).
+     */
+    fun load(manual: Boolean = false, onFetched: ((List<Channel>) -> Unit)? = null) {
         viewModelScope.launch {
+            val before = _ui.value.all.size
+            if (manual) showNotice("Đang tải lại danh sách nguồn…")
             _ui.update { it.copy(loading = true, error = null) }
             val cached = repo.cached()
             if (cached.isNotEmpty()) _ui.update { it.copy(all = cached) }
@@ -93,14 +108,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     scan(ScanMode.NEW, autoFill = false)
                 }
                 _ui.update { it.copy(all = fresh, loading = false) }
+                if (manual) {
+                    val dc = (fresh.size - before).coerceAtLeast(0)
+                    showNotice("Đã tải lại: ${fresh.size} kênh trong danh sách" + (if (dc > 0) ", thêm $dc kênh mới" else "") + ". Đang thử lại các kênh chưa chạy được…")
+                }
                 onFetched?.invoke(fresh)
             } catch (e: Exception) {
+                if (manual) showNotice("Không tải lại được: ${e.message}")
                 _ui.update {
                     it.copy(loading = false, error = if (it.all.isEmpty()) "Lỗi: ${e.message}" else null)
                 }
             }
             scanJob?.join()      // đợi lượt kiểm tra nguồn lõi xong rồi mới kiểm tra phần còn lại
-            scan(ScanMode.NEW)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
+            scan(if (manual) ScanMode.DEAD else ScanMode.NEW)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
         }
     }
 
@@ -182,7 +202,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val all = okU + unknown
         val pool = all.take(6)
         val res = prober.measure(pool)
-        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.fail(u) }
+        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.penalize(u) }
         h.save()
         refreshHealth()
         val live = pool.filter { (res[it] ?: -1) > 0 }.sortedByDescending { h.score(it) }
@@ -194,7 +214,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Kết quả khi đang xem: phát được thật -> xóa lỗi; lỗi 1 lần chưa loại, lỗi liên tiếp 2 lần mới coi là chết. */
     fun report(c: Channel, ok: Boolean, url: String?) {
         if (url == null) return
-        if (ok) repo.health.confirm(url) else repo.health.fail(url)
+        if (ok) repo.health.confirm(url) else repo.health.penalize(url)   // kênh không biến mất; chỉ link đó xuống cuối hàng
         repo.health.save()
         refreshHealth()
     }
@@ -223,7 +243,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(scanTotal = targets.size, scanDone = 0) }
         val h = repo.health
         val done = AtomicInteger(0)
-        val sem = Semaphore(16)
+        val sem = Semaphore(12)
+        // Link bị chậm/ngắt quãng lúc quét song song: CHƯA kết luận chết, đo lại ở lượt 2 khi mạng đã rảnh
+        val retryLater = java.util.concurrent.ConcurrentLinkedQueue<String>()
         fun push(finished: Boolean) {
             h.save()
             _ui.update {
@@ -243,12 +265,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             for (u in c.urls) {
                                 if (!isActive) return@withPermit
                                 var sc = prober.probe(u)
-                                if (sc == 0) sc = prober.probe(u)   // đo lại 1 lần để không loại oan link chập chờn
+                                if (sc == 0) { delay(1_500); sc = prober.probe(u) }   // đo lại sau 1,5 s để không loại oan link chập chờn
                                 if (sc > 0) { h.succeed(u, sc); good++; if (good >= 2) break }
-                                else h.kill(u)
+                                else if (sc == HARD_DEAD) h.kill(u)      // 404 / sai tên miền / từ chối kết nối: chết thật
+                                else retryLater.add(u)                   // chậm hoặc ngắt quãng: đo lại ở lượt 2
                             }
                             val d = done.incrementAndGet()
                             if (d % 3 == 0) push(false)
+                        }
+                    }
+                }
+            }
+            // Lượt 2: chỉ 3 luồng nên mỗi link được dùng trọn băng thông; vẫn lỗi mới kết luận là chết
+            val again = retryLater.toList()
+            if (again.isNotEmpty()) {
+                val sem2 = Semaphore(3)
+                coroutineScope {
+                    again.forEach { u ->
+                        launch(Dispatchers.IO) {
+                            sem2.withPermit {
+                                if (!isActive) return@withPermit
+                                val sc = prober.probe(u)
+                                if (sc > 0) h.succeed(u, sc) else h.kill(u)
+                                _ui.update { it.copy(ok = h.ok(), dead = h.dead()) }
+                            }
                         }
                     }
                 }

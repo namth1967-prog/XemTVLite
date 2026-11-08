@@ -244,6 +244,11 @@ class Health(private val prefs: android.content.SharedPreferences, private val k
     }
     /** Đang phát được thật: xóa lỗi, giữ điểm cũ. */
     fun confirm(url: String) { m[url] = Stat(maxOf(m[url]?.score ?: 0, 1), 0) }
+    /** Lỗi khi đang xem: chỉ trừ điểm để link đó xuống cuối hàng, KHÔNG đánh dấu chết (kênh không biến mất). */
+    fun penalize(url: String) {
+        val o = m[url] ?: return
+        if (o.score > 0) m[url] = Stat(maxOf(1, o.score / 2), o.fails)
+    }
     /** Lỗi 1 lần (khi đang xem hoặc đo nhanh). */
     fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1) }
     /** Đã đo lại chắc chắn là chết. */
@@ -479,47 +484,5 @@ class Repo(context: Context) {
             if (gone.isNotEmpty()) { val g = gone.toSet(); found = found.filter { it !in g } }
             merge(results.filterNotNull())
         }
-    }
-    suspend fun cached(): List<Channel> = withContext(Dispatchers.IO) {
-        merge(allSources().map { s -> s to readCached(s) })
-    }
-
-    /** Tải tất cả nguồn (tối đa 8 cùng lúc). Nguồn nào lỗi thì dùng bản đã lưu. */
-    suspend fun fetch(): List<Channel> = withContext(Dispatchers.IO) {
-        val srcs = allSources()
-        val sem = Semaphore(8)
-        val wk = wantedGroups().keys
-        val gone = java.util.concurrent.ConcurrentLinkedQueue<String>()   // nguồn tự tìm đã bị xóa (404/410)
-        val results = coroutineScope {
-            srcs.map { s ->
-                async {
-                    sem.withPermit {
-                        if (s.url == EXTRA_ASSET) return@withPermit (s to readCached(s)).takeIf { it.second.isNotEmpty() }
-                        try {
-                            val req = Request.Builder().url(s.url).build()
-                            val body = client.newCall(req).execute().use { r ->
-                                if (!r.isSuccessful) error("HTTP ${r.code}")
-                                r.body?.string().orEmpty()
-                            }
-                            val list = filterFor(s, parseM3u(body), wk)
-                            if (list.isEmpty()) error("trống")
-                            file(s).writeText(serialize(list))   // lưu bản đã lọc cho nhẹ
-                            s to list
-                        } catch (e: Exception) {
-                            val m = e.message.orEmpty()
-                            if (s.discovered && (m.startsWith("HTTP 404") || m.startsWith("HTTP 410"))) {
-                                gone.add(s.url); forget(s); null     // nguồn chết hẳn -> bỏ để tìm nguồn thay thế
-                            } else {
-                                val c = readCached(s)
-                                if (c.isNotEmpty()) s to c else null
-                            }
-                        }
-                    }
-                }
-            }.awaitAll()
-        }
-        if (srcs.isNotEmpty() && results.all { it == null }) error("không tải được nguồn nào, kiểm tra mạng hoặc link")
-        if (gone.isNotEmpty()) { val g = gone.toSet(); found = found.filter { it !in g } }
-        merge(results.filterNotNull())
     }
 }

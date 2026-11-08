@@ -132,6 +132,10 @@ fun HomeScreen(
             item { Pill("★ Yêu thích", ui.group == FAV) { onGroup(FAV) } }
             items(groups) { g -> Pill("$g (${counts[g]})", ui.group == g) { onGroup(g) } }
         }
+        ui.notice?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, fontSize = 14.sp, color = Color(0xFFFFC857))
+        }
         if (ui.scanTotal > 0) {
             Spacer(Modifier.height(6.dp))
             Text("Đang kiểm tra kênh ${ui.scanDone}/${ui.scanTotal} · đang hiện ${ui.alive.size} kênh sống", fontSize = 14.sp, color = Muted)
