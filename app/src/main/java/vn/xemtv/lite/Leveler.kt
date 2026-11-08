@@ -93,9 +93,9 @@ class LevelerProcessor : BaseAudioProcessor() {
     }
 
     private companion object {
-        const val TARGET = 0.091       // mức RMS mong muốn (~ -21 dBFS), to hơn 30% so với 0.07
-        const val MIN_GAIN = 0.39      // giảm tối đa ~8 dB
-        const val MAX_GAIN = 5.2       // tăng tối đa ~14 dB
+        const val TARGET = 0.109       // mức RMS mong muốn (~ -19 dBFS); 0.07 -> 0.091 (+30%) -> 0.109 (+20% nữa)
+        const val MIN_GAIN = 0.47      // giảm tối đa ~6,5 dB
+        const val MAX_GAIN = 6.2       // tăng tối đa ~16 dB
         const val SILENCE = 0.003      // dưới ngưỡng này coi là im lặng
         const val WARM_BLOCKS = 8
         const val KNEE = 0.85

@@ -51,6 +51,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
@@ -75,6 +78,8 @@ fun HomeScreen(
     shown: List<Channel>,
     numbers: Map<String, Int>,
     onPlayNumber: (Int) -> Unit,
+    restoreKey: String,
+    onTopFocus: (String) -> Unit,
     onGroup: (String) -> Unit,
     onFav: (Channel) -> Unit,
     onReload: () -> Unit,
@@ -113,7 +118,40 @@ fun HomeScreen(
     val order = remember(ui.sources) {
         VN_GROUPS + listOf(G_SPORT, G_MOVIE) + ui.sources.filter { !it.auto }.map { it.name } + G_OTHER
     }
-    val groups = remember(counts, order) { order.distinct().filter { (counts[it] ?: 0) > 0 } }
+    val userNames = remember(ui.sources) { ui.sources.filter { !it.auto }.map { it.name }.toSet() }
+    // Nhóm do bạn tự thêm luôn hiện (kể cả đang trống) để chọn và chuyển kênh vào
+    val groups = remember(counts, order, userNames) { order.distinct().filter { (counts[it] ?: 0) > 0 || it in userNames } }
+
+    // ----- Nhớ và trả lại vị trí focus: bấm Back sẽ về nút đã đứng trước khi vào danh sách kênh / mở kênh -----
+    val rowState = rememberLazyListState()
+    val reqs = remember { HashMap<String, FocusRequester>() }
+    var topKey by remember { mutableStateOf(restoreKey) }
+    var topFocusedKey by remember { mutableStateOf("") }
+    var gridFocused by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun req(key: String) = reqs.getOrPut(key) { FocusRequester() }
+    fun topMod(key: String): Modifier = Modifier.focusRequester(req(key)).onFocusChanged { st ->
+        if (st.isFocused) { topKey = key; topFocusedKey = key; onTopFocus(key) }
+        else if (topFocusedKey == key) topFocusedKey = ""
+    }
+    suspend fun focusTop(key: String) {
+        val i = when {
+            key == "all" -> 0
+            key == "fav" -> 1
+            key.startsWith("g:") -> 2 + groups.indexOf(key.drop(2)).coerceAtLeast(0)
+            else -> -1
+        }
+        if (i >= 0) runCatching { rowState.scrollToItem(i) }
+        repeat(6) {
+            if (topFocusedKey == key) return
+            delay(80)
+            runCatching { req(key).requestFocus() }
+        }
+    }
+    LaunchedEffect(Unit) { if (restoreKey.isNotEmpty()) focusTop(restoreKey) }   // vừa thoát màn hình phát
+    BackHandler(enabled = gridFocused && !showSettings && menuFor == null) {
+        scope.launch { focusTop(topKey.ifEmpty { "all" }) }
+    }
 
     Column(
         Modifier
@@ -124,14 +162,14 @@ fun HomeScreen(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Xem TV Lite v$ver", fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.weight(1f))
-            Pill("Tải lại", false, onClick = onReload)
-            Pill("Cài đặt", false) { showSettings = true }
+            Pill("Tải lại", false, modifier = topMod("reload"), onClick = onReload)
+            Pill("Cài đặt", false, modifier = topMod("settings")) { showSettings = true }
         }
         Spacer(Modifier.height(12.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Pill("Tất cả", ui.group == "") { onGroup("") } }
-            item { Pill("★ Yêu thích", ui.group == FAV) { onGroup(FAV) } }
-            items(groups) { g -> Pill("$g (${counts[g]})", ui.group == g) { onGroup(g) } }
+        LazyRow(state = rowState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { Pill("Tất cả", ui.group == "", modifier = topMod("all")) { onGroup("") } }
+            item { Pill("★ Yêu thích", ui.group == FAV, modifier = topMod("fav")) { onGroup(FAV) } }
+            items(groups) { g -> Pill("$g (${counts[g] ?: 0})", ui.group == g, modifier = topMod("g:$g")) { onGroup(g) } }
         }
         ui.notice?.let {
             Spacer(Modifier.height(6.dp))
@@ -146,6 +184,7 @@ fun HomeScreen(
         Box(Modifier.fillMaxSize()) {
             if (shown.isNotEmpty()) {
                 LazyVerticalGrid(
+                    modifier = Modifier.onFocusChanged { gridFocused = it.hasFocus },
                     columns = GridCells.Adaptive(160.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -171,7 +210,11 @@ fun HomeScreen(
                     Modifier.align(Alignment.Center), color = Muted, fontSize = 18.sp, textAlign = TextAlign.Center,
                 )
                 shown.isEmpty() -> Text(
-                    if (ui.group == FAV) "Chưa có kênh yêu thích.\nGiữ nút OK trên một kênh để thêm." else "Không có kênh nào.",
+                    when {
+                        ui.group == FAV -> "Chưa có kênh yêu thích.\nGiữ nút OK trên một kênh để thêm."
+                        ui.group in userNames -> "Nhóm này đang trống.\nGiữ nút OK trên kênh ở nhóm khác, chọn \"Di chuyển kênh…\" để đưa vào đây."
+                        else -> "Không có kênh nào."
+                    },
                     Modifier.align(Alignment.Center), color = Muted, fontSize = 18.sp, textAlign = TextAlign.Center,
                 )
             }
@@ -411,7 +454,7 @@ private fun SettingsDialog(
                     Pill(if (ui.extras) "BẬT" else "TẮT", ui.extras, small = true, onClick = onToggleExtras)
                 }
                 ui.sources.forEach { s ->
-                    SettingRow("Nhóm: ${s.name}") {
+                    SettingRow(if (s.url.isBlank()) "Nhóm: ${s.name} (trống)" else "Nhóm: ${s.name}") {
                         Pill("Xóa", false, textColor = Color(0xFFFF8A8A), small = true) { onRemove(s) }
                     }
                 }
@@ -501,6 +544,8 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
     val u = url.text.trim()
     val bare = u.equals("https://", true) || u.equals("http://", true)
     val urlOk = !bare && (u.startsWith("http://", true) || u.startsWith("https://", true))
+    val empty = u.isEmpty() || bare                       // bỏ trống link = nhóm trống
+    val canAdd = if (empty) name.isNotBlank() else urlOk
     val addFocus = remember { FocusRequester() }
     val cancelFocus = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -510,7 +555,7 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
         // Rời ô nhập: ẩn bàn phím rồi đưa focus HẲN sang nút (ô nhập mất focus nên bàn phím không hiện lại)
         val leave = {
             hideKeyboard(view)
-            runCatching { if (urlOk) addFocus.requestFocus() else cancelFocus.requestFocus() }
+            runCatching { if (canAdd) addFocus.requestFocus() else cancelFocus.requestFocus() }
             Unit
         }
         Column(
@@ -527,7 +572,7 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
                 colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(leave),
                 keyboardOptions = nextOptions, keyboardActions = nextActions { fm.moveFocus(FocusDirection.Down) })
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextField(url, { url = it }, singleLine = true, label = { Text("2. Link M3U (http… hoặc https…)") },
+                TextField(url, { url = it }, singleLine = true, label = { Text("2. Link M3U (có thể bỏ trống)") },
                     colors = tfColors(), modifier = Modifier.weight(1f).leaveOnDpad(leave),
                     keyboardOptions = nextOptions, keyboardActions = nextActions(leave))
                 when {
@@ -537,8 +582,9 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
                 }
             }
             if (u.isNotEmpty() && !bare && !urlOk) Text("Link phải bắt đầu bằng http:// hoặc https://", fontSize = 13.sp, color = Color(0xFFFF9A9A))
+            if (empty) Text("Bỏ trống link = tạo nhóm trống để tự chuyển kênh từ nhóm khác vào.", fontSize = 13.sp, color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("Thêm nhóm", false, enabled = urlOk, small = true, modifier = Modifier.focusRequester(addFocus)) { onAdd(name, url.text) }
+                Pill("Thêm nhóm", false, enabled = canAdd, small = true, modifier = Modifier.focusRequester(addFocus)) { onAdd(name, if (empty) "" else url.text) }
                 Pill("Hủy", false, small = true, modifier = Modifier.focusRequester(cancelFocus), onClick = onDismiss)
             }
         }

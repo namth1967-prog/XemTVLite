@@ -435,7 +435,7 @@ class Repo(context: Context) {
     /** Nguồn lõi (có sẵn + nhóm do bạn thêm): tải xong là hiện kênh ngay, không chờ Thể thao/Phim/nguồn tự tìm. */
     private fun coreSources(): List<Source> =
         (if (builtIn) listOf(Source("Việt Nam", EXTRA_ASSET, true)) + BUILT_IN_URLS.map { Source("Việt Nam", it, true) }
-         else emptyList()) + sources
+         else emptyList()) + sources.filter { it.url.isNotBlank() }   // nhóm trống (không có link) không cần tải
 
     private fun lateSources(): List<Source> =
         (if (extras) EXTRA_SOURCES else emptyList()) +
@@ -473,38 +473,69 @@ class Repo(context: Context) {
 
     private fun nameScore(n: String) = (if (hasAccent(n)) 2 else 0) + (if (!n.contains('(')) 1 else 0)
 
+    /** Thứ hạng nhóm khi gộp kênh trùng: số nhỏ = ưu tiên giữ kênh ở nhóm đó. -1: nhóm do người dùng tự thêm (không gộp chéo nhóm). */
+    private fun groupRank(g: String): Int = when {
+        g in VN_GROUPS -> VN_GROUPS.indexOf(g)
+        g == G_SPORT -> 20
+        g == G_MOVIE -> 21
+        g == G_OTHER -> 30
+        else -> -1
+    }
+
     /**
-     * Lượt 2 chống trùng: tên kênh này là PHẦN ĐẦU của tên kênh kia thì gộp
-     * (ON Movies ⊂ "ON Movies - You TV", ANTV ⊂ "ANTV - TH Công an nhân dân").
-     * Điều kiện: cùng nhóm; phần dư không chứa số (Cần Thơ 2 ≠ Cần Thơ 3); tên ngắn có ≥ 2 từ,
-     * hoặc thuộc [NAME_FAMILY], hoặc hai kênh có CÙNG logo (tên 1 từ như "ON", "HTV" quá chung nên cần logo giống nhau).
+     * Gộp kênh trùng và GIỮ LẠI mọi link (tối đa MAX_LINKS):
+     *  - Trùng khít tên (sau chuẩn hoá) nhưng nằm ở nhóm khác nhau (VD "HTVC Phim" vừa ở HTVC vừa ở Phim, hoặc cùng kênh nằm
+     *    ở "Khác"): gộp vào nhóm ưu tiên cao hơn (VTV > Thiết yếu > VTVcab > SCTV > HTVC > Địa phương > Thể thao > Phim > Khác).
+     *  - Tên này là PHẦN ĐẦU của tên kia (ON Movies ⊂ "ON Movies - You TV", ANTV ⊂ "ANTV - TH Công an nhân dân"):
+     *    cùng nhóm: tên ngắn có ≥ 2 từ (và logo không mâu thuẫn), hoặc thuộc NAME_FAMILY, hoặc cùng logo;
+     *    khác nhóm: thuộc NAME_FAMILY hoặc cùng logo.
+     *    Phần dư không được chứa số (Cần Thơ 2 ≠ Cần Thơ 3).
+     * Nhóm do người dùng tự thêm không bị gộp chéo nhóm (đó là chủ ý của người dùng).
+     * Khi gộp giữ id của kênh mà người dùng đã đánh dấu (yêu thích / đã xoá / đã di chuyển) để không mất lựa chọn đó.
      */
-    private fun mergeNameParts(map: LinkedHashMap<String, Channel>) {
-        class Item(val mk: String, val group: String, val tokens: List<String>)
-        val items = map.keys.map { mk ->
-            Item(mk, mk.substringBefore('|'), mk.substringAfter('|').split(' ').filter { it.isNotEmpty() })
+    private fun dedupeChannels(input: List<Channel>): List<Channel> {
+        if (input.size < 2) return input
+        val userIds = favorites + hidden + moved.keys
+        class Node(var ch: Channel, val toks: List<String>, val pool: String)
+        val nodes = input.map { c ->
+            Node(c, dedupeKey(c.name).split(' ').filter { it.isNotEmpty() }, if (groupRank(c.group) >= 0) "*" else c.group)
         }
-        for ((_, grp) in items.groupBy { it.group }) {
-            if (grp.size < 2) continue
-            val sorted = grp.sortedBy { it.tokens.size }
-            for (c in sorted) {
-                val cc = map[c.mk] ?: continue
-                var best: Item? = null
-                for (a in sorted) {
-                    if (a.tokens.size >= c.tokens.size) break          // đã xếp tăng dần: chỉ xét kênh có tên ngắn hơn
-                    val ac = map[a.mk] ?: continue
-                    if (c.tokens.take(a.tokens.size) != a.tokens) continue
-                    if (c.tokens.drop(a.tokens.size).any { t -> t.any { ch -> ch.isDigit() } }) continue
-                    val ok = a.tokens.size >= 2 || a.tokens[0] in NAME_FAMILY || (ac.logo.isNotBlank() && ac.logo == cc.logo)
-                    if (ok && (best == null || a.tokens.size > best.tokens.size)) best = a
+        val gone = BooleanArray(nodes.size)
+        for ((_, idxs) in nodes.indices.groupBy { nodes[it].pool }) {
+            if (idxs.size < 2) continue
+            val sorted = idxs.sortedWith(compareBy({ nodes[it].toks.size }, { it }))
+            for (ci in sorted) {
+                if (gone[ci]) continue
+                val c = nodes[ci]
+                var best = -1
+                for (ai in sorted) {
+                    if (ai == ci) break                       // đã xếp tăng dần: chỉ xét kênh đứng trước (tên ngắn hơn hoặc trùng khít)
+                    if (gone[ai]) continue
+                    val a = nodes[ai]
+                    if (c.toks.take(a.toks.size) != a.toks) continue
+                    val extra = c.toks.drop(a.toks.size)
+                    if (extra.any { t -> t.any { ch -> ch.isDigit() } }) continue
+                    val sameGroup = a.ch.group == c.ch.group
+                    val sameLogo = a.ch.logo.isNotBlank() && a.ch.logo == c.ch.logo
+                    val logoConflict = a.ch.logo.isNotBlank() && c.ch.logo.isNotBlank() && a.ch.logo != c.ch.logo   // hai kênh khác nhau (Sky Sports / Sky Sports News)
+                    val ok = extra.isEmpty() ||
+                        (a.toks.size == 1 && a.toks[0] in NAME_FAMILY) ||
+                        sameLogo ||
+                        (sameGroup && a.toks.size >= 2 && !logoConflict)
+                    if (ok && (best < 0 || a.toks.size > nodes[best].toks.size)) best = ai
                 }
-                val b = best ?: continue
-                val bc = map[b.mk] ?: continue
-                val urls = (bc.urls + cc.urls.filter { it !in bc.urls }).take(MAX_LINKS)
-                map[b.mk] = bc.copy(logo = bc.logo.ifBlank { cc.logo }, urls = urls)
-                map.remove(c.mk)
+                if (best < 0) continue
+                val p = nodes[best]
+                val exact = p.toks.size == c.toks.size
+                val group = if (groupRank(p.ch.group) <= groupRank(c.ch.group)) p.ch.group else c.ch.group
+                val id = if (c.ch.id in userIds && p.ch.id !in userIds) c.ch.id else p.ch.id
+                val name = if (exact && nameScore(c.ch.name) > nameScore(p.ch.name)) c.ch.name else p.ch.name
+                val urls = (p.ch.urls + c.ch.urls.filter { it !in p.ch.urls }).take(MAX_LINKS)
+                p.ch = p.ch.copy(id = id, name = name, group = group, logo = p.ch.logo.ifBlank { c.ch.logo }, urls = urls)
+                gone[ci] = true
             }
         }
+        return nodes.indices.filter { !gone[it] }.map { nodes[it].ch }
     }
 
     private fun merge(parts: List<Pair<Source, List<Entry>>>): List<Channel> {
@@ -526,9 +557,10 @@ class Repo(context: Context) {
                 map[mk] = cur.copy(name = name, logo = cur.logo.ifBlank { e.logo }, urls = urls)
             }
         }
-        mergeNameParts(map)
+        // Gộp kênh trùng còn sót (khác nhóm, hoặc tên này là phần đầu của tên kia) mà vẫn giữ mọi link
+        val deduped = dedupeChannels(map.values.toList())
         // Logo tự đặt trong assets/logos.txt luôn được ưu tiên
-        val withLogo = map.values.map { c -> logoMap[dedupeKey(c.name)]?.let { c.copy(logo = it) } ?: c }
+        val withLogo = deduped.map { c -> logoMap[dedupeKey(c.name)]?.let { c.copy(logo = it) } ?: c }
         val (auto, user) = withLogo.partition { it.group in AUTO_GROUPS }
         return auto.sortedBy { natKey(it.name) } + user
     }

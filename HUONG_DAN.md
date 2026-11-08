@@ -63,6 +63,12 @@ Mặc định app nạp danh sách công khai của iptv-org (kênh Việt Nam).
 - **Thông báo tiến trình** ghi rõ đang quét gì: "Lượt 1/2: kênh Việt Nam", "Lượt 2/2: Thể thao, Phim & nguồn tự tìm", "Đang đo lại link chập chờn".
 - **Âm lượng** chuẩn to hơn khoảng 30%.
 
+## Bản 3.5
+
+- **Phím Back trả focus về chỗ cũ**: đang ở nút nhóm (ví dụ "VTV"), bấm vào một kênh để xem, rồi Back → focus về lại nút "VTV". Đang ở trong danh sách kênh bấm Back → focus về nút nhóm đã đứng trước đó (bấm Back lần nữa mới thoát app).
+- **Thêm nhóm không cần link**: bỏ trống link để tạo nhóm trống, rồi giữ OK trên một kênh → Di chuyển kênh… để đưa vào. Nhóm tự thêm luôn hiện trên thanh nhóm kể cả khi đang trống.
+- **Gộp kênh trùng giữa các nhóm**: kênh trùng ở nhóm khác nhau được gộp làm một, giữ mọi link, đặt ở nhóm ưu tiên cao hơn. Nhóm do bạn tự thêm không bị gộp chéo.
+
 ## Vì sao nhẹ và mượt
 
 - Kotlin + Jetpack Compose, trình phát Media3 ExoPlayer chỉ nạp HLS.

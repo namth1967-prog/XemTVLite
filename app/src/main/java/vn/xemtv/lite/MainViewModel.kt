@@ -149,17 +149,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Thêm link mới -> tạo nhóm mới mang tên [name]. */
+    /** Thêm nhóm. Bỏ trống link = nhóm trống (không có nguồn) để tự chuyển kênh từ nhóm khác vào. */
     fun addSource(name: String, url: String) {
         val u = url.trim()
-        if (u.isBlank()) return
-        repo.sources = repo.sources + Source(name.trim().ifBlank { "Nhóm mới" }, u)
+        val n = name.trim().ifBlank { "Nhóm mới" }
+        val empty = u.isBlank() || u.equals("https://", true) || u.equals("http://", true)
+        if (repo.sources.any { !it.auto && it.name.equals(n, true) } || n in VN_GROUPS || n == G_SPORT || n == G_MOVIE || n == G_OTHER) {
+            showNotice("Đã có nhóm tên \"$n\", hãy chọn tên khác.")
+            return
+        }
+        if (empty) {
+            repo.sources = repo.sources + Source(n, "")
+            _ui.update { it.copy(sources = repo.sources) }
+            showNotice("Đã tạo nhóm trống \"$n\". Giữ OK trên một kênh → Di chuyển kênh… để đưa vào nhóm.")
+            return
+        }
+        repo.sources = repo.sources + Source(n, u)
         sourcesChanged()
     }
 
     fun removeSource(s: Source) {
         repo.forget(s)
         repo.sources = repo.sources.filter { it != s }
-        sourcesChanged()
+        // Kênh đã được di chuyển vào nhóm này: bỏ ghi nhớ để chúng về lại nhóm gốc
+        val m = repo.moved.filterValues { it != s.name }
+        if (m.size != repo.moved.size) { repo.moved = m; _ui.update { it.copy(moved = m) } }
+        if (s.url.isBlank()) _ui.update { it.copy(sources = repo.sources, group = if (it.group == s.name) "" else it.group) }
+        else sourcesChanged()
     }
 
     fun toggleExtras() {

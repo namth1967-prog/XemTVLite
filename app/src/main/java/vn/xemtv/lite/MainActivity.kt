@@ -61,6 +61,7 @@ private fun App(vm: MainViewModel = viewModel()) {
         }
     }
 
+    var lastTop by remember { mutableStateOf("") }   // nút đã focus trước khi vào danh sách kênh / mở kênh
     var playList by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var playIndex by remember { mutableIntStateOf(-1) }
 
@@ -86,6 +87,8 @@ private fun App(vm: MainViewModel = viewModel()) {
                     if (i >= 0) { playList = shown; playIndex = i } else { playList = ordered; playIndex = ordered.indexOf(t) }
                 }
             },
+            restoreKey = lastTop,
+            onTopFocus = { lastTop = it },
             onGroup = vm::setGroup,
             onFav = vm::toggleFav,
             onReload = { vm.load(manual = true) },
