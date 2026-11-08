@@ -57,6 +57,12 @@ Mặc định app nạp danh sách công khai của iptv-org (kênh Việt Nam).
 - **Khởi động nhanh hơn**: danh sách kênh lần trước được lưu sẵn nên mở app là hiện ngay.
 - **Lỗi thoát bất thường**: nếu app thoát đột ngột, mở **Cài đặt** sẽ thấy mục "Lần thoát bất thường gần nhất" ghi nguyên nhân. Chụp màn hình mục này để được hỗ trợ.
 
+## Bản 3.4
+
+- **Chống trùng kênh mở rộng**: tên viết tắt và tên đầy đủ (ANTV / An Ninh TV / ANTV - TH Công an nhân dân, QPVN / QPVN - TH Quân đội…), tên có thêm ghi chú chất lượng (1080i…) hoặc có phần mô tả đi kèm (ON Movies / ON Movies - You TV) được gộp làm một kênh. Muốn thêm cặp viết tắt mới, sửa bảng `ALIAS_PREFIXES` trong `Data.kt`.
+- **Thông báo tiến trình** ghi rõ đang quét gì: "Lượt 1/2: kênh Việt Nam", "Lượt 2/2: Thể thao, Phim & nguồn tự tìm", "Đang đo lại link chập chờn".
+- **Âm lượng** chuẩn to hơn khoảng 30%.
+
 ## Vì sao nhẹ và mượt
 
 - Kotlin + Jetpack Compose, trình phát Media3 ExoPlayer chỉ nạp HLS.

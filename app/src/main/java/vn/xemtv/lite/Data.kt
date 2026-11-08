@@ -102,9 +102,9 @@ private val natMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
 fun fold(s: String): String =
     Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(RX_0, "").replace('đ', 'd')
 
-private val QUALITY = Regex("""\s*[(\[]?\s*(?:hd|fhd|sd|uhd|4k|1080p|720p|576p|480p)\s*[)\]]?\s*$""", RegexOption.IGNORE_CASE)
+private val QUALITY = Regex("""\s*[(\[]?\s*(?:hd|fhd|sd|uhd|4k|8k|2160p|1440p|1080[pi]|720[pi]|576[pi]|540[pi]|480[pi]|360p|240p)\s*[)\]]?\s*$""", RegexOption.IGNORE_CASE)
 private val ANNOT = Regex(
-    """\s*[(\[][^)\]]*(?:geo|backup|link|mirror|not\s*24|24/7|dự\s*phòng|vietsub|\b\d{3,4}p\b|\bhd\b|\bsd\b|fhd|uhd|4k|test|lag|unstable|offline)[^)\]]*[)\]]\s*$""",
+    """\s*[(\[][^)\]]*(?:geo|backup|link|mirror|not\s*24|24/7|dự\s*phòng|vietsub|\b\d{3,4}[pi]\b|\bhd\b|\bsd\b|fhd|uhd|4k|test|lag|unstable|offline)[^)\]]*[)\]]\s*$""",
     RegexOption.IGNORE_CASE,
 )
 
@@ -158,14 +158,29 @@ private val PROVINCE_RE = Regex("(?:^|[^a-z])(?:${PROVINCES.joinToString("|")})(
 // ---------- Khóa chống trùng kênh ----------
 // Gộp các cách viết khác nhau của cùng một kênh: "Da Nang TV 1" = "Đà Nẵng TV1" = "Truyền hình Đà Nẵng 01"…
 private val PROV_JOIN = Regex("(?<![a-z0-9])(?:${PROVINCES.sortedByDescending { it.length }.joinToString("|")})(?![a-z0-9])")
-private val NOISE2 = NOISE + setOf("truyen", "hinh", "dai", "ptth", "thtp")
+private val NOISE2 = NOISE + setOf("truyen", "hinh", "dai", "ptth", "thtp",
+    "1080i", "720i", "576i", "480i", "540i", "2160p", "1440p", "540p", "360p", "240p", "8k")
+
+// Tên khác nhau nhưng là MỘT kênh (viết tắt <-> tên đầy đủ). Mỗi dòng: cụm từ đầu của tên (đã bỏ dấu) -> khoá chung.
+// Muốn thêm cặp mới chỉ cần thêm một dòng ở đây.
+private val ALIAS_PREFIXES: List<Pair<List<String>, List<String>>> = listOf(
+    listOf("an", "ninh") to listOf("antv"),                      // An Ninh TV = ANTV
+    listOf("quoc", "phong", "viet", "nam") to listOf("qpvn"),    // Quốc phòng Việt Nam = QPVN
+    listOf("quoc", "phong") to listOf("qpvn"),
+)
+
+// Tên viết tắt dài ra bằng phần mô tả được phép gộp vào tên ngắn (ANTV = "ANTV - TH Công an nhân dân", QPVN = "QPVN - TH Quân đội")
+private val NAME_FAMILY = setOf("antv", "qpvn")
+
+// Tên tỉnh viết liền (cantho, danang…): "Cần Thơ TV" = "Cần Thơ TV 1" (kênh số 1 của đài)
+private val PROV_COMPACT = PROVINCES.map { it.replace(" ", "") }.toSet()
 private val TV_NUM = Regex("^tv0*(\\d+)$")
 
 fun dedupeKey(name: String): String = dedupeMemo.getOrPut(name) { dedupeKeyRaw(name) }
 
 private fun dedupeKeyRaw(name: String): String {
     val f = PROV_JOIN.replace(fold(canonicalName(name))) { it.value.replace(" ", "") }   // "can tho" -> "cantho"
-    return f.split(RX_11)
+    var toks = f.split(RX_11)
         .filter { it.isNotEmpty() && it !in NOISE2 }
         .map { w ->
             val m = TV_NUM.find(w)
@@ -173,7 +188,12 @@ private fun dedupeKeyRaw(name: String): String {
             else if (w.all { it.isDigit() }) w.trimStart('0').ifEmpty { "0" } else w     // "03" -> "3"
         }
         .filter { it !in NOISE2 }
-        .joinToString(" ") { singular(it) }
+        .map { singular(it) }
+    for ((from, to) in ALIAS_PREFIXES) {
+        if (toks.size >= from.size && toks.take(from.size) == from) { toks = to + toks.drop(from.size); break }
+    }
+    if (toks.size == 2 && toks[1] == "1" && toks[0] in PROV_COMPACT) toks = listOf(toks[0])   // "cantho 1" = "cantho"
+    return toks.joinToString(" ")
 }
 
 private fun hasAccent(s: String) = fold(s) != s.lowercase()
@@ -451,6 +471,42 @@ class Repo(context: Context) {
         } catch (e: Exception) { emptyMap() }
     }
 
+    private fun nameScore(n: String) = (if (hasAccent(n)) 2 else 0) + (if (!n.contains('(')) 1 else 0)
+
+    /**
+     * Lượt 2 chống trùng: tên kênh này là PHẦN ĐẦU của tên kênh kia thì gộp
+     * (ON Movies ⊂ "ON Movies - You TV", ANTV ⊂ "ANTV - TH Công an nhân dân").
+     * Điều kiện: cùng nhóm; phần dư không chứa số (Cần Thơ 2 ≠ Cần Thơ 3); tên ngắn có ≥ 2 từ,
+     * hoặc thuộc [NAME_FAMILY], hoặc hai kênh có CÙNG logo (tên 1 từ như "ON", "HTV" quá chung nên cần logo giống nhau).
+     */
+    private fun mergeNameParts(map: LinkedHashMap<String, Channel>) {
+        class Item(val mk: String, val group: String, val tokens: List<String>)
+        val items = map.keys.map { mk ->
+            Item(mk, mk.substringBefore('|'), mk.substringAfter('|').split(' ').filter { it.isNotEmpty() })
+        }
+        for ((_, grp) in items.groupBy { it.group }) {
+            if (grp.size < 2) continue
+            val sorted = grp.sortedBy { it.tokens.size }
+            for (c in sorted) {
+                val cc = map[c.mk] ?: continue
+                var best: Item? = null
+                for (a in sorted) {
+                    if (a.tokens.size >= c.tokens.size) break          // đã xếp tăng dần: chỉ xét kênh có tên ngắn hơn
+                    val ac = map[a.mk] ?: continue
+                    if (c.tokens.take(a.tokens.size) != a.tokens) continue
+                    if (c.tokens.drop(a.tokens.size).any { t -> t.any { ch -> ch.isDigit() } }) continue
+                    val ok = a.tokens.size >= 2 || a.tokens[0] in NAME_FAMILY || (ac.logo.isNotBlank() && ac.logo == cc.logo)
+                    if (ok && (best == null || a.tokens.size > best.tokens.size)) best = a
+                }
+                val b = best ?: continue
+                val bc = map[b.mk] ?: continue
+                val urls = (bc.urls + cc.urls.filter { it !in bc.urls }).take(MAX_LINKS)
+                map[b.mk] = bc.copy(logo = bc.logo.ifBlank { cc.logo }, urls = urls)
+                map.remove(c.mk)
+            }
+        }
+    }
+
     private fun merge(parts: List<Pair<Source, List<Entry>>>): List<Channel> {
         val map = LinkedHashMap<String, Channel>()
         val wantedGroup = wantedGroups()
@@ -466,10 +522,11 @@ class Repo(context: Context) {
             if (cur == null) map[mk] = Channel("$group|$key", display, e.logo, group, listOf(e.url))   // id giữ như cũ -> không mất yêu thích
             else {
                 val urls = if (e.url !in cur.urls && cur.urls.size < MAX_LINKS) cur.urls + e.url else cur.urls
-                val name = if (hasAccent(display) && !hasAccent(cur.name)) display else cur.name       // ưu tiên tên có dấu
+                val name = if (nameScore(display) > nameScore(cur.name)) display else cur.name         // ưu tiên tên có dấu, không có ghi chú (…)
                 map[mk] = cur.copy(name = name, logo = cur.logo.ifBlank { e.logo }, urls = urls)
             }
         }
+        mergeNameParts(map)
         // Logo tự đặt trong assets/logos.txt luôn được ưu tiên
         val withLogo = map.values.map { c -> logoMap[dedupeKey(c.name)]?.let { c.copy(logo = it) } ?: c }
         val (auto, user) = withLogo.partition { it.group in AUTO_GROUPS }

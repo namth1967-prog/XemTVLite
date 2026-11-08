@@ -1,0 +1,83 @@
+# Logo tự đặt cho kênh. Mỗi dòng:  Tên kênh|https://link-anh-logo.png
+# - Tên kênh viết có dấu hay không dấu, hoa hay thường đều được (VD: "Đà Nẵng TV1" khớp "Da Nang TV 1").
+# - Link phải là địa chỉ ảnh (png/jpg/webp) bắt đầu bằng http hoặc https.
+# - Dòng bắt đầu bằng # là ghi chú, bị bỏ qua. Logo ở đây luôn được ưu tiên hơn logo trong danh sách nguồn.
+# Ví dụ (bỏ dấu # ở đầu dòng và thay link thật):
+# VTV1|https://example.com/vtv1.png
+An Giang 1|https://i.imgur.com/mgp6RAU.png
+An Giang 2|https://i.imgur.com/efrauLr.png
+An Giang 3|https://i.imgur.com/gZUV4z8.png
+Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
+Cà Mau|https://i.imgur.com/ZKV1ok2.png
+Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
+Cần Thơ 2|https://i.imgur.com/HqV3frO.png
+Cần Thơ 3|https://i.imgur.com/7FA1I1d.png
+Cao Bằng|https://i.imgur.com/RUJmK5D.png
+Đắk Lắk|https://i.imgur.com/7CQqMeh.png
+Đà Nẵng 1|https://i.postimg.cc/8jwBQ42q/dnrt1.png
+Đà Nẵng 2|https://i.postimg.cc/870Rs5Pm/dnrt2.png
+Điện Biên|https://i.imgur.com/hMDRDxN.png
+Đồng Nai 1|https://i.postimg.cc/HJN6GzyV/DN1.png
+Đồng Nai 2|https://i.postimg.cc/Mf75Q8r8/DN2.png
+Đồng Tháp 1|https://i.imgur.com/TqAz7ET.png
+Đồng Tháp 2|https://i.imgur.com/PfETBEp.png
+Gia Lai|https://i.postimg.cc/grHBjV9t/Gialai.png
+Hải Phòng|https://i.imgur.com/iq9JLb9.png
+Hải Phòng 3|https://i.imgur.com/FEvJhRf.png
+Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
+Hà Nội 2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
+Hà Tĩnh|https://i.imgur.com/sESKlNO.png
+HTV1|https://i.imgur.com/KEMSBD3.png
+HTV2|https://i.imgur.com/2npoF3Q.png
+HTV3|https://i.imgur.com/TCoIsVF.png
+HTV4|https://i.imgur.com/BcCA0x2.png
+HTV5|https://i.imgur.com/EI0mJRf.png
+HTV7|https://i.imgur.com/n2PEK28.png
+HTV9|https://i.imgur.com/6GSN524.png
+HTVC Du Lịch|https://i.imgur.com/mDemDFL.png
+HTVC Gia Đình|https://i.imgur.com/Al6xJme.png
+HTVC Phim|https://i.imgur.com/P0wqvmu.png
+HTVC Phụ Nữ|https://i.imgur.com/FxzpvHI.png
+HTVC+|https://i.imgur.com/Tkjs3C5.png
+HTVC Thuần Việt|https://i.imgur.com/KtMeo6q.png
+HTVC Thể Thao|https://i.imgur.com/ikaiET3.png
+Huế|https://i.imgur.com/bVWyWC7.png
+Hưng Yên|https://i.imgur.com/fakTCLE.png
+Khánh Hòa|https://i.postimg.cc/2qn7JYr6/KH.png
+Khánh Hòa 1|https://i.postimg.cc/14vcbJhC/KH1.png
+Lai Châu|https://i.imgur.com/n02cvKQ.png
+Lâm Đồng 1|https://i.postimg.cc/f35Jkqv6/LD1.png
+Lâm Đồng 2|https://i.postimg.cc/n99zRFfP/LD2.png
+Lạng Sơn|https://i.imgur.com/yxz02UD.png
+Lào Cai|https://i.imgur.com/Vd0P0rx.png
+Nghệ An|https://i.postimg.cc/HxP9pG9N/nghean.png
+Ninh Bình|https://i.imgur.com/qHQTwJ9.png
+Phú Thọ|https://i.imgur.com/LXuRwJY.png
+Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
+Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
+Quảng Ninh 1|https://i.imgur.com/KVia0uU.png
+Quảng Ninh 3|https://i.imgur.com/AheAmMj.png
+Quảng Trị|https://i.imgur.com/6qOelwt.png
+Sơn La|https://i.postimg.cc/3JnLC20C/Snews.png
+Tây Ninh|https://i.imgur.com/HFm3hbC.png
+Thái Nguyên|https://i.imgur.com/P3pbab8.png
+Thanh Hóa|https://i.imgur.com/UwTCbZ5.png
+Tuyên Quang|https://i.imgur.com/Pfq3ix9.png
+Vĩnh Long 1|https://i.imgur.com/q3fjpYc.png
+Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
+Vĩnh Long 3|https://i.imgur.com/44c1Yoz.png
+Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
+Vĩnh Long 5|https://i.imgur.com/hSdSUqx.png
+VTV10|https://i.postimg.cc/4nY8BrVK/V10.png
+VTV1|https://i.postimg.cc/F1FvzstX/V1.png
+VTV2|https://i.postimg.cc/yDR4tDRm/V2.png
+VTV3|https://i.postimg.cc/B8cWZRM0/V3.png
+VTV4|https://i.postimg.cc/Wqzxnzj0/V4.png
+VTV5|https://i.postimg.cc/ZC91vWVM/V5.png
+VTV5 Tây Nguyên|https://i.postimg.cc/HcZhVm5d/V5TN.png
+VTV5 Tây Nam Bộ|https://i.postimg.cc/68ngzDsM/V5TNB.png
+VTV6|https://i.postimg.cc/t7Jc81QZ/V6.png
+VTV7|https://i.postimg.cc/ykSbYwN8/V7.png
+VTV8|https://i.postimg.cc/k2QYWK8w/V8.png
+VTV9|https://i.postimg.cc/phT0NSS6/V9.png
+

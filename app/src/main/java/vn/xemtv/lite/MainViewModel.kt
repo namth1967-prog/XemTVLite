@@ -31,6 +31,7 @@ data class UiState(
     val dead: Set<String> = emptySet(),    // link đã kiểm tra: chết
     val scanDone: Int = 0,
     val scanTotal: Int = 0,          // > 0: đang quét
+    val scanLabel: String = "Đang kiểm tra kênh",   // đang quét nhóm nào (hiện cạnh tiến trình)
     val ghToken: String = "",
     val foundCount: Int = 0,
     val discovering: Boolean = false,
@@ -98,7 +99,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * [manual]: do người dùng bấm "Tải lại" -> có thông báo kết quả và thử lại cả các kênh đang chết.
      * [onFetched]: gọi khi đã nạp xong toàn bộ danh sách (để báo số kênh/link mới).
      */
-    fun load(manual: Boolean = false, onFetched: ((List<Channel>) -> Unit)? = null) {
+    fun load(manual: Boolean = false, label2: String? = null, onFetched: ((List<Channel>) -> Unit)? = null) {
         viewModelScope.launch {
             val before = _ui.value.all.size
             if (manual) showNotice("Đang tải lại danh sách nguồn…")
@@ -109,7 +110,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val fresh = repo.fetch { core ->
                     // Nguồn lõi xong: hiện ngay và bắt đầu kiểm tra, không chờ Thể thao/Phim/nguồn tự tìm
                     _ui.update { it.copy(all = core, loading = false) }
-                    scan(ScanMode.NEW, autoFill = false)
+                    scan(ScanMode.NEW, autoFill = false, label = label2 ?: "Lượt 1/2: kênh Việt Nam")
                 }
                 _ui.update { it.copy(all = fresh, loading = false) }
                 if (manual) {
@@ -124,7 +125,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             scanJob?.join()      // đợi lượt kiểm tra nguồn lõi xong rồi mới kiểm tra phần còn lại
-            scan(if (manual) ScanMode.DEAD else ScanMode.NEW)   // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
+            // tự kiểm tra kênh nền; kênh còn sống sẽ hiện dần
+            scan(
+                if (manual) ScanMode.DEAD else ScanMode.NEW,
+                label = label2 ?: if (manual) "Thử lại kênh chưa chạy được" else "Lượt 2/2: Thể thao, Phim & nguồn tự tìm",
+            )
         }
     }
 
@@ -230,7 +235,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ----- Kiểm tra kênh (chỉ hiện kênh chắc chắn sống; kết quả lưu mãi) -----
-    fun scan(mode: ScanMode = ScanMode.NEW, autoFill: Boolean = true) {
+    fun scan(mode: ScanMode = ScanMode.NEW, autoFill: Boolean = true, label: String? = null) {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
             val h = repo.health
@@ -244,13 +249,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 ScanMode.DEAD -> chans.filter { c -> c.urls.none { it in ok0 } }
                 ScanMode.NEW -> chans.filter { c -> c.urls.none { it in ok0 } && !c.urls.all { it in dead0 } }
             }.sortedBy { if (it.group in mine) 0 else 1 }     // nhóm bạn tự thêm được kiểm tra trước
-            if (targets.isNotEmpty()) runScan(targets)
+            val lb = label ?: when (mode) {
+                ScanMode.NEW -> "Kiểm tra kênh mới"
+                ScanMode.DEAD -> "Thử lại kênh đang chết"
+                ScanMode.ALL -> "Kiểm tra lại tất cả kênh"
+            }
+            if (targets.isNotEmpty()) runScan(targets, lb)
             if (isActive && autoFill) maybeAutoFill()
         }
     }
 
-    private suspend fun runScan(targets: List<Channel>) {
-        _ui.update { it.copy(scanTotal = targets.size, scanDone = 0) }
+    private suspend fun runScan(targets: List<Channel>, label: String) {
+        _ui.update { it.copy(scanTotal = targets.size, scanDone = 0, scanLabel = label) }
         val h = repo.health
         val done = AtomicInteger(0)
         val sem = Semaphore(12)
@@ -296,6 +306,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Lượt 2: chỉ 3 luồng nên mỗi link được dùng trọn băng thông; vẫn lỗi mới kết luận là chết
             val again = retryLater.toList()
             if (again.isNotEmpty()) {
+                done.set(0)
+                _ui.update { it.copy(scanLabel = "Đang đo lại link chập chờn", scanTotal = again.size, scanDone = 0) }
                 val sem2 = Semaphore(3)
                 coroutineScope {
                     again.forEach { u ->
@@ -304,6 +316,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (!isActive) return@withPermit
                                 val sc = prober.probe(u)
                                 if (sc > 0) h.succeed(u, sc) else h.kill(u)
+                                done.incrementAndGet()
                                 maybePush()
                             }
                         }
@@ -371,7 +384,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     discoverMsg = "Xong: tìm thấy ${urls.size} file, tổng ${merged.size} nguồn.$note Đang nạp lại danh sách…",
                 )
             }
-            load { fresh ->
+            load(label2 = "Kiểm tra link mới tìm được") { fresh ->
                 val dc = (fresh.size - beforeCh).coerceAtLeast(0)
                 val dl = (fresh.sumOf { it.urls.size } - beforeLinks).coerceAtLeast(0)
                 _ui.update {

@@ -139,7 +139,7 @@ fun HomeScreen(
         }
         if (ui.scanTotal > 0) {
             Spacer(Modifier.height(6.dp))
-            Text("Đang kiểm tra kênh ${ui.scanDone}/${ui.scanTotal} · đang hiện ${ui.alive.size} kênh sống", fontSize = 14.sp, color = Muted)
+            Text("${ui.scanLabel}: ${ui.scanDone}/${ui.scanTotal} · đang hiện ${ui.alive.size} kênh", fontSize = 14.sp, color = Muted)
         }
         Spacer(Modifier.height(14.dp))
 
@@ -378,7 +378,7 @@ private fun SettingsDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SettingRow(
-                    if (scanning) "Đang kiểm tra ${ui.scanDone}/${ui.scanTotal} · hiện ${ui.alive.size} kênh"
+                    if (scanning) "${ui.scanLabel}: ${ui.scanDone}/${ui.scanTotal} · hiện ${ui.alive.size} kênh"
                     else "Kênh đang hiện: ${ui.alive.size}/${ui.all.size}"
                 ) { Pill("Kiểm tra lại tất cả", false, enabled = !scanning, small = true, onClick = onScan) }
                 SettingRow("Thử lại các kênh đang chết") {
@@ -460,9 +460,15 @@ private fun SettingsDialog(
 @Composable
 private fun TokenDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var tok by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
+    val saveFocus = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val view = LocalView.current
         SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        val leave = {
+            hideKeyboard(view)
+            runCatching { saveFocus.requestFocus() }
+            Unit
+        }
         Column(
             Modifier
                 .padding(top = 12.dp)
@@ -475,11 +481,11 @@ private fun TokenDialog(initial: String, onDismiss: () -> Unit, onSave: (String)
             Text("Token GitHub (không bắt buộc)", color = White, fontSize = 20.sp)
             TextField(
                 tok, { tok = it }, singleLine = true, label = { Text("Dán token (ghp_… hoặc github_pat_…)") },
-                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(),
-                keyboardOptions = nextOptions, keyboardActions = nextActions(),
+                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(leave),
+                keyboardOptions = nextOptions, keyboardActions = nextActions(leave),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("Lưu", false, small = true) { onSave(tok.text.trim()) }
+                Pill("Lưu", false, small = true, modifier = Modifier.focusRequester(saveFocus)) { onSave(tok.text.trim()) }
                 Pill("Hủy", false, small = true, onClick = onDismiss)
             }
         }
@@ -495,9 +501,18 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
     val u = url.text.trim()
     val bare = u.equals("https://", true) || u.equals("http://", true)
     val urlOk = !bare && (u.startsWith("http://", true) || u.startsWith("https://", true))
+    val addFocus = remember { FocusRequester() }
+    val cancelFocus = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val view = LocalView.current
+        val fm = LocalFocusManager.current
         SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        // Rời ô nhập: ẩn bàn phím rồi đưa focus HẲN sang nút (ô nhập mất focus nên bàn phím không hiện lại)
+        val leave = {
+            hideKeyboard(view)
+            runCatching { if (urlOk) addFocus.requestFocus() else cancelFocus.requestFocus() }
+            Unit
+        }
         Column(
             Modifier
                 .padding(top = 12.dp)
@@ -509,12 +524,12 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
         ) {
             Text("Thêm nhóm mới", color = White, fontSize = 20.sp)
             TextField(name, { name = it }, singleLine = true, label = { Text("1. Tên nhóm") },
-                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(),
-                keyboardOptions = nextOptions, keyboardActions = nextActions())
+                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(leave),
+                keyboardOptions = nextOptions, keyboardActions = nextActions { fm.moveFocus(FocusDirection.Down) })
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextField(url, { url = it }, singleLine = true, label = { Text("2. Link M3U (http… hoặc https…)") },
-                    colors = tfColors(), modifier = Modifier.weight(1f).leaveOnDpad(),
-                    keyboardOptions = nextOptions, keyboardActions = nextActions())
+                    colors = tfColors(), modifier = Modifier.weight(1f).leaveOnDpad(leave),
+                    keyboardOptions = nextOptions, keyboardActions = nextActions(leave))
                 when {
                     u.isEmpty() || bare -> {}
                     urlOk -> Text("✔", color = Color(0xFF4CD964), fontSize = 30.sp)
@@ -523,8 +538,8 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Uni
             }
             if (u.isNotEmpty() && !bare && !urlOk) Text("Link phải bắt đầu bằng http:// hoặc https://", fontSize = 13.sp, color = Color(0xFFFF9A9A))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("Thêm nhóm", false, enabled = urlOk, small = true) { onAdd(name, url.text) }
-                Pill("Hủy", false, small = true, onClick = onDismiss)
+                Pill("Thêm nhóm", false, enabled = urlOk, small = true, modifier = Modifier.focusRequester(addFocus)) { onAdd(name, url.text) }
+                Pill("Hủy", false, small = true, modifier = Modifier.focusRequester(cancelFocus), onClick = onDismiss)
             }
         }
     }
@@ -539,19 +554,20 @@ private fun hideKeyboard(view: android.view.View) {
 
 /**
  * Ô nhập văn bản mặc định nuốt phím ↑/↓ và Back nên remote không rời ô được. Ở đây:
- * ↑/↓ = ẩn bàn phím rồi chuyển focus sang ô/nút kế bên; Back (khi bàn phím đã ẩn mà focus còn kẹt trong ô) = rời ô.
+ * Back = rời ô ([onLeave]: ẩn bàn phím và đưa focus sang nút, xử lý cả lúc nhấn lẫn lúc nhả phím);
+ * ↑/↓ = ẩn bàn phím rồi chuyển focus sang ô/nút kế bên.
  */
 @Composable
-private fun Modifier.leaveOnDpad(): Modifier {
+private fun Modifier.leaveOnDpad(onLeave: () -> Unit): Modifier {
     val fm = LocalFocusManager.current
     val view = LocalView.current
     var backDown by remember { mutableStateOf(false) }
     return this.onPreviewKeyEvent { ev ->
         when {
             ev.key == Key.Back -> {
-                if (ev.type == KeyEventType.KeyDown) {
-                    backDown = true; hideKeyboard(view); fm.moveFocus(FocusDirection.Down); true
-                } else { val was = backDown; backDown = false; was }   // nuốt cả lúc nhả Back để hộp thoại không đóng theo
+                if (ev.type == KeyEventType.KeyDown) { backDown = true; onLeave() }
+                else { if (!backDown) onLeave(); backDown = false }
+                true     // nuốt Back (cả lúc nhấn và nhả) để hộp thoại không đóng theo
             }
             ev.type != KeyEventType.KeyDown -> false
             ev.key == Key.DirectionDown -> { hideKeyboard(view); fm.moveFocus(FocusDirection.Down); true }
@@ -563,11 +579,6 @@ private fun Modifier.leaveOnDpad(): Modifier {
 
 private val nextOptions = KeyboardOptions(imeAction = ImeAction.Done)
 
-/** Phím Xong/Next trên bàn phím ảo: ẩn bàn phím rồi chuyển focus xuống ô/nút kế tiếp. */
-@Composable
-private fun nextActions(): KeyboardActions {
-    val fm = LocalFocusManager.current
-    val view = LocalView.current
-    val leave = { hideKeyboard(view); fm.moveFocus(FocusDirection.Down); Unit }
-    return KeyboardActions(onNext = { leave() }, onDone = { leave() })
-}
+/** Phím Xong/Next trên bàn phím ảo chạy [onDone] (thường là rời ô nhập hoặc sang ô kế tiếp). */
+private fun nextActions(onDone: () -> Unit): KeyboardActions =
+    KeyboardActions(onNext = { onDone() }, onDone = { onDone() })
