@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(this)
         setContent {
             MaterialTheme(colorScheme = Colors) {
                 Surface(color = Colors.background, contentColor = Color.White) { App() }
@@ -95,6 +96,7 @@ private fun App(vm: MainViewModel = viewModel()) {
             onScan = { vm.scan(ScanMode.ALL) },
             onScanDead = { vm.scan(ScanMode.DEAD) },
             onToggleAutoFill = vm::toggleAutoFill,
+            onToggleLeveler = vm::toggleLeveler,
             onHide = vm::hideChannel,
             onMove = vm::moveChannel,
             onRestore = vm::restoreChannels,

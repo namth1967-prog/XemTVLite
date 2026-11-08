@@ -51,6 +51,12 @@ Mặc định app nạp danh sách công khai của iptv-org (kênh Việt Nam).
 - **Chống trùng kênh**: các cách viết khác nhau của cùng một kênh (Da Nang TV 1 / Đà Nẵng TV1 / Truyền hình Đà Nẵng 01…) được gộp làm một, ưu tiên hiện tên có dấu.
 - **Logo**: kênh không có logo hiện ô màu kèm chữ cái đầu. Muốn tự đặt logo, mở `app/src/main/assets/logos.txt` bằng Notepad, thêm mỗi dòng `Tên kênh|link ảnh logo`, rồi build lại.
 
+## Bản 3.3
+
+- **Cân bằng âm lượng**: app tự chỉnh mức tiếng về mức vừa phải, kênh quá to được giảm nhanh, kênh quá nhỏ được tăng từ từ; vào kênh âm lượng tăng dần trong nửa giây. Tắt/bật ở **Cài đặt → Cân bằng âm lượng giữa các kênh**.
+- **Khởi động nhanh hơn**: danh sách kênh lần trước được lưu sẵn nên mở app là hiện ngay.
+- **Lỗi thoát bất thường**: nếu app thoát đột ngột, mở **Cài đặt** sẽ thấy mục "Lần thoát bất thường gần nhất" ghi nguyên nhân. Chụp màn hình mục này để được hỗ trợ.
+
 ## Vì sao nhẹ và mượt
 
 - Kotlin + Jetpack Compose, trình phát Media3 ExoPlayer chỉ nạp HLS.

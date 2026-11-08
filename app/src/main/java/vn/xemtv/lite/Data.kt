@@ -77,8 +77,30 @@ const val EXTRA_ASSET = "asset://live_extra.m3u"
 
 
 // ---------- Chuẩn hóa tên kênh (giống cách app mẫu gộp kênh trùng) ----------
+// Regex và kết quả chuẩn hoá tên được tạo MỘT LẦN rồi dùng lại (trước đây tạo mới hàng chục Regex cho mỗi tên kênh
+// ở mỗi lần nạp danh sách -> khởi động rất chậm trên TV box).
+private val RX_0 = Regex("\\p{Mn}+")
+private val RX_1 = Regex("^[^\\p{L}\\p{N}]+")
+private val RX_2 = Regex("\\s+")
+private val RX_3 = Regex("^vtv[\\s\\-_.]*cab[\\s\\-_.]*(\\d{1,2})(?!\\d)")
+private val RX_4 = Regex("^on[\\s\\-_.]*sports?$")
+private val RX_5 = Regex("^vtv[\\s\\-_.]*(?:5[\\s\\-_.]*)?tay\\s*nguyen")
+private val RX_6 = Regex("^vtv[\\s\\-_.]*(?:5[\\s\\-_.]*)?tay\\s*nam\\s*bo")
+private val RX_7 = Regex("^vtv[\\s\\-_.]*can\\s*tho")
+private val RX_8 = Regex("^vtv[\\s\\-_.]*(\\d{1,2})(?!\\d)")
+private val RX_9 = Regex("^sctv[\\s\\-_.]*(\\d{1,2})(?!\\d)")
+private val RX_10 = Regex("(?:ss|us|is)$")
+private val RX_11 = Regex("[^a-z0-9]+")
+private val RX_12 = Regex("^on\\s")
+private val RX_13 = Regex("\\d+")
+private val canonMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
+private val keyMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
+private val dedupeMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
+private val classMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
+private val natMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
+
 fun fold(s: String): String =
-    Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").replace('đ', 'd')
+    Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(RX_0, "").replace('đ', 'd')
 
 private val QUALITY = Regex("""\s*[(\[]?\s*(?:hd|fhd|sd|uhd|4k|1080p|720p|576p|480p)\s*[)\]]?\s*$""", RegexOption.IGNORE_CASE)
 private val ANNOT = Regex(
@@ -96,26 +118,30 @@ private fun stripAnnotations(name: String): String {
     return out
 }
 
-fun canonicalName(name: String): String {
-    val plain = stripAnnotations(name).replace(Regex("^[^\\p{L}\\p{N}]+"), "").replace(Regex("\\s+"), " ").trim()
+fun canonicalName(name: String): String = canonMemo.getOrPut(name) { canonicalNameRaw(name) }
+
+private fun canonicalNameRaw(name: String): String {
+    val plain = stripAnnotations(name).replace(RX_1, "").replace(RX_2, " ").trim()
     val f = fold(plain)
-    Regex("^vtv[\\s\\-_.]*cab[\\s\\-_.]*(\\d{1,2})(?!\\d)").find(f)?.let { return "VTVcab ${it.groupValues[1].toInt()}" }
-    if (Regex("^on[\\s\\-_.]*sports?$").matches(f)) return "VTVcab 3"
-    if (Regex("^vtv[\\s\\-_.]*(?:5[\\s\\-_.]*)?tay\\s*nguyen").containsMatchIn(f)) return "VTV5 Tây Nguyên"
-    if (Regex("^vtv[\\s\\-_.]*(?:5[\\s\\-_.]*)?tay\\s*nam\\s*bo").containsMatchIn(f)) return "VTV5 Tây Nam Bộ"
-    if (Regex("^vtv[\\s\\-_.]*can\\s*tho").containsMatchIn(f)) return "VTV Cần Thơ"
-    Regex("^vtv[\\s\\-_.]*(\\d{1,2})(?!\\d)").find(f)?.let { return "VTV${it.groupValues[1].toInt()}" }
-    Regex("^sctv[\\s\\-_.]*(\\d{1,2})(?!\\d)").find(f)?.let { return "SCTV${it.groupValues[1].toInt()}" }
+    RX_3.find(f)?.let { return "VTVcab ${it.groupValues[1].toInt()}" }
+    if (RX_4.matches(f)) return "VTVcab 3"
+    if (RX_5.containsMatchIn(f)) return "VTV5 Tây Nguyên"
+    if (RX_6.containsMatchIn(f)) return "VTV5 Tây Nam Bộ"
+    if (RX_7.containsMatchIn(f)) return "VTV Cần Thơ"
+    RX_8.find(f)?.let { return "VTV${it.groupValues[1].toInt()}" }
+    RX_9.find(f)?.let { return "SCTV${it.groupValues[1].toInt()}" }
     return plain
 }
 
 private val NOISE = setOf("the", "channel", "chanel", "kenh", "tv", "hd", "fhd", "sd", "uhd", "4k", "1080p", "720p", "576p", "480p")
 private val KEEP_S = setOf("news", "plus", "mass", "gas", "bus", "xtreme")
 private fun singular(w: String) =
-    if (w.length < 4 || w in KEEP_S || !w.endsWith("s") || Regex("(?:ss|us|is)$").containsMatchIn(w)) w else w.dropLast(1)
+    if (w.length < 4 || w in KEEP_S || !w.endsWith("s") || RX_10.containsMatchIn(w)) w else w.dropLast(1)
 
-fun channelKey(name: String): String =
-    fold(canonicalName(name)).split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() && it !in NOISE }
+fun channelKey(name: String): String = keyMemo.getOrPut(name) { channelKeyRaw(name) }
+
+private fun channelKeyRaw(name: String): String =
+    fold(canonicalName(name)).split(RX_11).filter { it.isNotEmpty() && it !in NOISE }
         .joinToString(" ") { singular(it) }
 
 private val PROVINCES = listOf(
@@ -135,9 +161,11 @@ private val PROV_JOIN = Regex("(?<![a-z0-9])(?:${PROVINCES.sortedByDescending { 
 private val NOISE2 = NOISE + setOf("truyen", "hinh", "dai", "ptth", "thtp")
 private val TV_NUM = Regex("^tv0*(\\d+)$")
 
-fun dedupeKey(name: String): String {
+fun dedupeKey(name: String): String = dedupeMemo.getOrPut(name) { dedupeKeyRaw(name) }
+
+private fun dedupeKeyRaw(name: String): String {
     val f = PROV_JOIN.replace(fold(canonicalName(name))) { it.value.replace(" ", "") }   // "can tho" -> "cantho"
-    return f.split(Regex("[^a-z0-9]+"))
+    return f.split(RX_11)
         .filter { it.isNotEmpty() && it !in NOISE2 }
         .map { w ->
             val m = TV_NUM.find(w)
@@ -157,10 +185,12 @@ private val LOCAL_ABBR_RE = Regex("^(?:thvl|htv|btv|brt|la\\s*34|dnrtv|dntv|hano
 private val NATIONAL_RE = Regex("^(?:vtv(?:[1-9]|10)|vtv5 tay (?:nguyen|nam bo))\$")
 private val ESSENTIAL_RE = Regex("^(?:antv|an ninh|qptv|qpvn|quoc phong|vnews|vov|vtc|quoc hoi|thong tan xa|tvb|viet\\s*nam\\s*today)")
 
-fun classifyVn(name: String): String {
+fun classifyVn(name: String): String = classMemo.getOrPut(name) { classifyVnRaw(name) }
+
+private fun classifyVnRaw(name: String): String {
     val f = fold(name)
     return when {
-        f.startsWith("vtvcab") || f.startsWith("vtv cab") || Regex("^on\\s").containsMatchIn(f) -> G_VTVCAB
+        f.startsWith("vtvcab") || f.startsWith("vtv cab") || RX_12.containsMatchIn(f) -> G_VTVCAB
         f.startsWith("sctv") -> G_SCTV
         f.startsWith("htvc") -> G_HTVC
         NATIONAL_RE.containsMatchIn(f) -> G_NATIONAL
@@ -170,8 +200,10 @@ fun classifyVn(name: String): String {
     }
 }
 
-private fun natKey(s: String) =
-    fold(s).replace(Regex("\\s+"), "").replace(Regex("\\d+")) { it.value.padStart(5, '0') }
+private fun natKey(s: String): String = natMemo.getOrPut(s) { natKeyRaw(s) }
+
+private fun natKeyRaw(s: String): String =
+    fold(s).replace(RX_2, "").replace(RX_13) { it.value.padStart(5, '0') }
 
 /** Sắp theo nhóm (đúng thứ tự đánh số); trong nhóm giữ nguyên thứ tự (VTV1, VTV2, … VTV10). */
 fun orderChannels(list: List<Channel>, userGroups: List<String>): List<Channel> {
@@ -343,6 +375,11 @@ class Repo(context: Context) {
         get() = prefs.getBoolean("autofill", true)
         set(v) { prefs.edit().putBoolean("autofill", v).apply() }
 
+    /** Cân bằng âm lượng giữa các kênh (bộ tự chỉnh mức tiếng). */
+    var leveler: Boolean
+        get() = prefs.getBoolean("leveler", true)
+        set(v) { prefs.edit().putBoolean("leveler", v).apply() }
+
     var lastDiscover: Long
         get() = prefs.getLong("lastdisc", 0L)
         set(v) { prefs.edit().putLong("lastdisc", v).apply() }
@@ -439,6 +476,41 @@ class Repo(context: Context) {
         return auto.sortedBy { natKey(it.name) } + user
     }
 
+    // ----- Ảnh chụp danh sách đã gộp: mở app là hiện ngay, không phải đọc + gộp lại hàng nghìn dòng -----
+    private fun snapshotFile() = File(dir, "snapshot.json")
+
+    /** Đổi phiên bản app hoặc đổi cấu hình nguồn thì ảnh chụp cũ không còn dùng. */
+    private fun snapshotSig(): String {
+        val ver = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName.orEmpty() } catch (e: Exception) { "" }
+        val srcs = allSources().joinToString("|") { "${it.name}~${it.url}~${it.auto}~${it.discovered}~${it.mode}~${it.limit}" }
+        return "$ver#${srcs.hashCode()}"
+    }
+
+    private fun saveSnapshot(list: List<Channel>) {
+        try {
+            val arr = JSONArray()
+            list.forEach { c ->
+                arr.put(JSONObject().put("i", c.id).put("n", c.name).put("l", c.logo).put("g", c.group).put("u", JSONArray(c.urls)))
+            }
+            snapshotFile().writeText(JSONObject().put("sig", snapshotSig()).put("ch", arr).toString())
+        } catch (_: Exception) {}
+    }
+
+    suspend fun loadSnapshot(): List<Channel>? = withContext(Dispatchers.IO) {
+        try {
+            val f = snapshotFile()
+            if (!f.exists()) return@withContext null
+            val o = JSONObject(f.readText())
+            if (o.optString("sig") != snapshotSig()) return@withContext null
+            val a = o.getJSONArray("ch")
+            (0 until a.length()).map { k ->
+                val c = a.getJSONObject(k)
+                val u = c.getJSONArray("u")
+                Channel(c.getString("i"), c.getString("n"), c.optString("l"), c.getString("g"), (0 until u.length()).map { u.getString(it) })
+            }.takeIf { it.isNotEmpty() }
+        } catch (e: Exception) { null }
+    }
+
     suspend fun cached(): List<Channel> = withContext(Dispatchers.IO) {
         merge(allSources().map { s -> s to readCached(s) })
     }
@@ -482,7 +554,7 @@ class Repo(context: Context) {
             val results = coreRes + lateRes
             if ((core + late).isNotEmpty() && results.all { it == null }) error("không tải được nguồn nào, kiểm tra mạng hoặc link")
             if (gone.isNotEmpty()) { val g = gone.toSet(); found = found.filter { it !in g } }
-            merge(results.filterNotNull())
+            merge(results.filterNotNull()).also { saveSnapshot(it) }
         }
     }
 }

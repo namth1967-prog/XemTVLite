@@ -85,6 +85,7 @@ fun HomeScreen(
     onScan: () -> Unit,
     onScanDead: () -> Unit,
     onToggleAutoFill: () -> Unit,
+    onToggleLeveler: () -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
@@ -177,7 +178,7 @@ fun HomeScreen(
         }
     }
 
-    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToken, onCheckToken, onDiscover, onClearFound, onRestore)
+    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToggleLeveler, onToken, onCheckToken, onDiscover, onClearFound, onRestore)
 
     menuFor?.let { c ->
         ChannelMenu(
@@ -356,6 +357,7 @@ private fun SettingsDialog(
     onScan: () -> Unit,
     onScanDead: () -> Unit,
     onToggleAutoFill: () -> Unit,
+    onToggleLeveler: () -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
@@ -384,6 +386,18 @@ private fun SettingsDialog(
                 }
                 SettingRow("Tự bổ sung nguồn khi có kênh chết") {
                     Pill(if (ui.autoFill) "BẬT" else "TẮT", ui.autoFill, small = true, onClick = onToggleAutoFill)
+                }
+                SettingRow("Cân bằng âm lượng giữa các kênh") {
+                    Pill(if (ui.leveler) "BẬT" else "TẮT", ui.leveler, small = true, onClick = onToggleLeveler)
+                }
+                val appCtx = LocalContext.current
+                var crash by remember { mutableStateOf(CrashLog.summary(appCtx)) }
+                crash?.let { text ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Lần thoát bất thường gần nhất (gửi nội dung này để được hỗ trợ):", color = White, fontSize = 14.sp)
+                        Text(text, color = Color(0xFFFFC857), fontSize = 12.sp, maxLines = 8)
+                        Pill("Xoá thông tin này", false, small = true) { CrashLog.clear(appCtx); crash = null }
+                    }
                 }
                 SettingRow("Đã xoá ${ui.hidden.size} · đã di chuyển ${ui.moved.size} kênh") {
                     Pill("Khôi phục", false, enabled = ui.hidden.isNotEmpty() || ui.moved.isNotEmpty(), small = true, onClick = onRestore)

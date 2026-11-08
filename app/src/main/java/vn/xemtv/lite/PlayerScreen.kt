@@ -59,6 +59,10 @@ fun PlayerScreen(
     var retryCh by remember { mutableStateOf("") }      // kênh đã được tự thử lại 1 lượt
     var reloadTick by remember { mutableIntStateOf(0) }
     var failed by remember { mutableStateOf(false) }     // đã thử hết các nguồn mà vẫn không mở được
+    var advance by remember { mutableIntStateOf(0) }     // yêu cầu chuyển sang link kế tiếp
+    var advanceReason by remember { mutableStateOf("") }
+    var advanceBusy by remember { mutableStateOf(false) }
+    var rampTick by remember { mutableIntStateOf(0) }    // mỗi lần bắt đầu có hình: tăng âm lượng dần
     val focus = remember { FocusRequester() }
 
     val player = remember {
@@ -71,7 +75,7 @@ fun PlayerScreen(
         val load = DefaultLoadControl.Builder()
             .setBufferDurationsMs(8_000, 30_000, 1_500, 3_000)
             .build()
-        ExoPlayer.Builder(ctx)
+        ExoPlayer.Builder(ctx, LevelingRenderersFactory(ctx))   // có cân bằng âm lượng + bộ giải mã dự phòng
             .setMediaSourceFactory(DefaultMediaSourceFactory(http))
             .setLoadControl(load)
             .build()
@@ -91,27 +95,60 @@ fun PlayerScreen(
         }
     }
 
-    // Link hiện tại không dùng được (lỗi / không có tiếng): ghi nhận rồi đổi sang link dự phòng
-    fun tryNext(reason: String) {
-        val ch = list[index]
-        candidates.getOrNull(urlIdx)?.let { onResult(ch, false, it) }
-        val next = urlIdx + 1
-        if (next < candidates.size) {
-            urlIdx = next
-            status = "$reason, đổi sang nguồn ${next + 1}/${candidates.size}…"
-            player.setMediaItem(MediaItem.fromUri(candidates[next]))
+    // Phát một link: âm lượng về 0 rồi tăng dần khi bắt đầu có hình (kênh to không làm giật mình)
+    fun play(url: String) {
+        runCatching {
+            player.volume = 0f
+            player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
             player.playWhenReady = true
-        } else if (retryCh != ch.id) {
-            // Hết link dự phòng: đo lại toàn bộ 1 lượt (link chập chờn có thể đã chạy lại) rồi mới bỏ cuộc
-            retryCh = ch.id
-            status = "$reason, đang đo lại các nguồn…"
-            reloadTick++
-        } else {
-            status = "Chưa mở được kênh ($reason)."
+        }
+    }
+
+    // Link hiện tại không dùng được (lỗi / không có tiếng): chỉ GHI YÊU CẦU. Việc đổi link làm ở LaunchedEffect bên dưới,
+    // không làm ngay trong hàm gọi lại của trình phát.
+    fun tryNext(reason: String) {
+        if (advanceBusy) return
+        advanceReason = reason
+        advance++
+    }
+
+    LaunchedEffect(advance) {
+        if (advance == 0) return@LaunchedEffect
+        advanceBusy = true
+        try {
+            val reason = advanceReason
+            val ch = list[index]
+            val cands = candidates
+            cands.getOrNull(urlIdx)?.let { onResult(ch, false, it) }
+            val next = urlIdx + 1
+            if (next < cands.size) {
+                urlIdx = next
+                status = "$reason, đổi sang nguồn ${next + 1}/${cands.size}…"
+                runCatching { player.stop() }
+                delay(300)       // cho bộ giải mã nghỉ giữa hai lần thử, tránh dồn dập
+                if (candidates === cands && list[index].id == ch.id) play(cands[next])
+            } else if (retryCh != ch.id) {
+                // Hết link dự phòng: đo lại toàn bộ 1 lượt (link chập chờn có thể đã chạy lại) rồi mới bỏ cuộc
+                retryCh = ch.id
+                status = "$reason, đang đo lại các nguồn…"
+                reloadTick++
+            } else {
+                status = "Chưa mở được kênh ($reason)."
+                failed = true
+                showInfo = true
+                infoTick++
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Lỗi bất ngờ: báo trên màn hình thay vì để app thoát
+            status = "Chưa mở được kênh (${e.javaClass.simpleName})."
             failed = true
             showInfo = true
             infoTick++
+        } finally {
+            advanceBusy = false
         }
     }
 
@@ -120,14 +157,14 @@ fun PlayerScreen(
             override fun onPlayerError(error: PlaybackException) { tryNext("Link lỗi") }
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_READY -> { status = null; readyTick++ }
+                    Player.STATE_READY -> { status = null; readyTick++; rampTick++ }
                     Player.STATE_BUFFERING -> if (status == null) status = "Đang đệm…"
                     else -> {}
                 }
             }
         }
         player.addListener(l)
-        onDispose { player.removeListener(l); player.release() }
+        onDispose { player.removeListener(l); runCatching { player.release() } }
     }
 
     // Đã phát được 2,5 giây: phải có luồng âm thanh dùng được, nếu không coi là kênh chết
@@ -154,7 +191,7 @@ fun PlayerScreen(
         failed = false
         showInfo = true
         infoTick++
-        player.stop()
+        runCatching { player.stop() }
         val order = try {
             rank(ch.urls)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -164,9 +201,16 @@ fun PlayerScreen(
         }
         candidates = order
         urlIdx = 0
-        player.setMediaItem(MediaItem.fromUri(order.first()))
-        player.prepare()
-        player.playWhenReady = true
+        play(order.first())
+    }
+
+    // Vào kênh: tăng âm lượng từ 0 lên bình thường trong ~0,5 giây
+    LaunchedEffect(rampTick) {
+        if (rampTick == 0 || player.volume >= 1f) return@LaunchedEffect
+        for (i in 1..8) {
+            delay(60)
+            runCatching { player.volume = i / 8f }
+        }
     }
 
     // ----- Chọn kênh bằng phím số -----

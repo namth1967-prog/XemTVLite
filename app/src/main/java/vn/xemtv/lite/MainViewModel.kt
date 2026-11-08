@@ -37,6 +37,7 @@ data class UiState(
     val discoverMsg: String? = null,
     val tokenMsg: String? = null,
     val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
+    val leveler: Boolean = true,     // cân bằng âm lượng giữa các kênh
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
     val notice: String? = null,                    // thông báo ngắn (VD: kết quả bấm Tải lại)
@@ -71,7 +72,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras,
             ok = repo.health.ok(), dead = repo.health.dead(),
             ghToken = repo.ghToken, foundCount = repo.found.size, autoFill = repo.autoFill,
-            hidden = repo.hidden, moved = repo.moved,
+            hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler,
         )
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -86,7 +87,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         noticeJob = viewModelScope.launch { delay(7_000); _ui.update { it.copy(notice = null) } }
     }
 
-    init { load() }
+    init {
+        Leveler.enabled = repo.leveler
+        load()
+    }
 
     private fun refreshHealth() = _ui.update { it.copy(ok = repo.health.ok(), dead = repo.health.dead()) }
 
@@ -99,7 +103,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val before = _ui.value.all.size
             if (manual) showNotice("Đang tải lại danh sách nguồn…")
             _ui.update { it.copy(loading = true, error = null) }
-            val cached = repo.cached()
+            val cached = repo.loadSnapshot() ?: repo.cached()   // ảnh chụp lần trước: hiện ngay
             if (cached.isNotEmpty()) _ui.update { it.copy(all = cached) }
             try {
                 val fresh = repo.fetch { core ->
@@ -182,6 +186,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(hidden = emptySet(), moved = emptyMap()) }
     }
 
+    fun toggleLeveler() {
+        repo.leveler = !repo.leveler
+        Leveler.enabled = repo.leveler
+        _ui.update { it.copy(leveler = repo.leveler) }
+    }
+
     fun toggleAutoFill() {
         repo.autoFill = !repo.autoFill
         _ui.update { it.copy(autoFill = repo.autoFill) }
@@ -255,6 +265,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         }
+        // Cập nhật giao diện tối đa ~1 lần/giây: cập nhật dồn dập làm TV box giật và tốn công ghi dữ liệu
+        val lastPush = java.util.concurrent.atomic.AtomicLong(0L)
+        fun maybePush() {
+            val now = System.currentTimeMillis()
+            val last = lastPush.get()
+            if (now - last >= 1_000 && lastPush.compareAndSet(last, now)) push(false)
+        }
         try {
             coroutineScope {
                 targets.forEach { c ->
@@ -270,8 +287,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 else if (sc == HARD_DEAD) h.kill(u)      // 404 / sai tên miền / từ chối kết nối: chết thật
                                 else retryLater.add(u)                   // chậm hoặc ngắt quãng: đo lại ở lượt 2
                             }
-                            val d = done.incrementAndGet()
-                            if (d % 3 == 0) push(false)
+                            done.incrementAndGet()
+                            maybePush()
                         }
                     }
                 }
@@ -287,7 +304,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (!isActive) return@withPermit
                                 val sc = prober.probe(u)
                                 if (sc > 0) h.succeed(u, sc) else h.kill(u)
-                                _ui.update { it.copy(ok = h.ok(), dead = h.dead()) }
+                                maybePush()
                             }
                         }
                     }
