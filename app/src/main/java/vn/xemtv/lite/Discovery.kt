@@ -36,7 +36,7 @@ class Discovery(private val token: String) {
         "vtv htv m3u", "iptv the thao phim viet", "truyen hinh viet nam m3u", "iptv vtvcab sctv thvl",
         "vietnam m3u8", "viet iptv playlist", "vn iptv list", "vtv m3u8 github", "free iptv vietnam live",
         "vietnamese tv channels m3u", "iptv sctv htvc", "kenh phim viet nam m3u", "tv vietnam live stream",
-        "iptv asia m3u", "iptv playlist updated daily", "htv thvl vtv playlist",
+        "iptv asia m3u", "iptv playlist updated daily", "htv thvl vtv playlist", " All-In-One-IPTV",
     )
 
     private fun call(url: String): Res {
