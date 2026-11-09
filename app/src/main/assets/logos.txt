@@ -4,30 +4,69 @@
 # - Dòng bắt đầu bằng # là ghi chú, bị bỏ qua. Logo ở đây luôn được ưu tiên hơn logo trong danh sách nguồn.
 # Ví dụ (bỏ dấu # ở đầu dòng và thay link thật):
 # VTV1|https://example.com/vtv1.png
+# Chưa có Bình Thuận, 
+
 An Giang 1|https://i.imgur.com/mgp6RAU.png
 An Giang 2|https://i.imgur.com/efrauLr.png
 An Giang 3|https://i.imgur.com/gZUV4z8.png
+ATV1 - Báo và PTTH An Giang|https://angiangtv.vn/wp-content/uploads/2025/06/H4.png
+ATV3 - Báo và PTTH An Giang|https://angiangtv.vn/wp-content/uploads/2025/06/H5.png
+
+ANTV|https://img-zlr1.tv360.vn/image1/2020_09_23/1600822516608/b33963dc0df8_640_360.png
+
+QPVN|https://i.imgur.com/GQO7UNu.png
+
 Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
+Bắc Ninh|https://i.imgur.com/sPyR9t6.png
+
 Cà Mau|https://i.imgur.com/ZKV1ok2.png
+
+Cao Bằng|https://i.imgur.com/RUJmK5D.png
+#Cao Bang TV|https://i.imgur.com/dGonewm.png
+#CRTV HD - Báo Cao Bằng|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728292499129/aeb3499f5824_640_360.png
+
 Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
 Cần Thơ 2|https://i.imgur.com/HqV3frO.png
 Cần Thơ 3|https://i.imgur.com/7FA1I1d.png
-Cao Bằng|https://i.imgur.com/RUJmK5D.png
+
 Đắk Lắk|https://i.imgur.com/7CQqMeh.png
+#DRT HD - Báo và PTTH Đắk Lắk|https://img-zlr1.tv360.vn/image1/2025/06/30/11/1751256466336/bda77a407209_640_360.png
+
 Đà Nẵng 1|https://i.postimg.cc/8jwBQ42q/dnrt1.png
 Đà Nẵng 2|https://i.postimg.cc/870Rs5Pm/dnrt2.png
+#Da Nang TV 1|https://i.imgur.com/EOMuO1z.png
+#ĐNRT1 - Báo và PTTH Đà Nẵng|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/ĐNRT1.png
+#ĐNRT2 - Báo và PTTH Đà Nẵng|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/DNRT2_logo.png
+
 Điện Biên|https://i.imgur.com/hMDRDxN.png
+#Dien Bien TV|https://i.imgur.com/u308o8q.png
+#ĐTV HD - Báo Điện Biên Phủ|https://img-zlr1.tv360.vn/image1/2020_09_23/1600823593760/3a9a9e608e8d_640_360.png
+
 Đồng Nai 1|https://i.postimg.cc/HJN6GzyV/DN1.png
 Đồng Nai 2|https://i.postimg.cc/Mf75Q8r8/DN2.png
+#ĐNNRTV1 - Báo và PTTH Đồng Nai|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/ĐNNRTV1HD.png
+#ĐNNRTV2 - Báo và PTTH Đồng Nai|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/ĐNNRTV2.png
+#Dong Nai TV 1|https://i.imgur.com/oQyioVa.png
+#Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
+#Dong Nai TV 3|https://i.imgur.com/6P39BiA.png
+
 Đồng Tháp 1|https://i.imgur.com/TqAz7ET.png
 Đồng Tháp 2|https://i.imgur.com/PfETBEp.png
-Gia Lai|https://i.postimg.cc/grHBjV9t/Gialai.png
-Hải Phòng|https://i.imgur.com/iq9JLb9.png
+Dong Thap TV|https://i.ibb.co/XFX7yw0/logo2-1.png
 
-Hải Phòng 3|https://i.imgur.com/FEvJhRf.png
-Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
+#Gia Lai|https://i.postimg.cc/grHBjV9t/Gialai.png
+Gia Lai TV|https://i.imgur.com/oUSJX0X.png
+
+HanoiTV1|https://i.imgur.com/Je3K25E.png
+#Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
 Hà Nội 2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
+
+Hải Phòng|https://i.imgur.com/iq9JLb9.png
+Hải Phòng 3|https://i.imgur.com/FEvJhRf.png
+#THP3 - Báo và PTTH Hải Phòng|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/THP3.png
+
 Hà Tĩnh|https://i.imgur.com/sESKlNO.png
+
 HTV1|https://i.imgur.com/KEMSBD3.png
 HTV2|https://i.imgur.com/2npoF3Q.png
 HTV3|https://i.imgur.com/TCoIsVF.png
@@ -35,6 +74,7 @@ HTV4|https://i.imgur.com/BcCA0x2.png
 HTV5|https://i.imgur.com/EI0mJRf.png
 HTV7|https://i.imgur.com/n2PEK28.png
 HTV9|https://i.imgur.com/6GSN524.png
+
 HTVC Du Lịch|https://i.imgur.com/mDemDFL.png
 HTVC Gia Đình|https://i.imgur.com/Al6xJme.png
 HTVC Phim|https://i.imgur.com/P0wqvmu.png
@@ -42,28 +82,101 @@ HTVC Phụ Nữ|https://i.imgur.com/FxzpvHI.png
 HTVC+|https://i.imgur.com/Tkjs3C5.png
 HTVC Thuần Việt|https://i.imgur.com/KtMeo6q.png
 HTVC Thể Thao|https://i.imgur.com/ikaiET3.png
+
 Huế|https://i.imgur.com/bVWyWC7.png
+
 Hưng Yên|https://i.imgur.com/fakTCLE.png
+#Hung Yen TV|https://i.imgur.com/TH1DWdm.png
+
 Khánh Hòa|https://i.postimg.cc/2qn7JYr6/KH.png
 Khánh Hòa 1|https://i.postimg.cc/14vcbJhC/KH1.png
+
 Lai Châu|https://i.imgur.com/n02cvKQ.png
+
 Lâm Đồng 1|https://i.postimg.cc/f35Jkqv6/LD1.png
 Lâm Đồng 2|https://i.postimg.cc/n99zRFfP/LD2.png
+
 Lạng Sơn|https://i.imgur.com/yxz02UD.png
+
 Lào Cai|https://i.imgur.com/Vd0P0rx.png
-Nghệ An|https://i.postimg.cc/HxP9pG9N/nghean.png
-Ninh Bình|https://i.imgur.com/qHQTwJ9.png
+#THLC HD - Báo và PTTH Lào Cai|https://lichphatsongtivi.com/storage/images/thumbnails/lich-phat-song-thlc.png
+
+LTV - Báo Lai Châu|https://images.fptplay53.net/media/channels/icon_channel_lai-chau_165649245279.png
+
+#Nghệ An|https://i.postimg.cc/HxP9pG9N/nghean.png
+#NTV - Báo và PTTH Nghệ An|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821989411/75bfb004e210_640_360.png
+Nghe An TV|https://i.imgur.com/d9YEEwC.png
+
+Ninh Bình|https://i.imgur.com/pL4NqYO.png
+#Ninh Bình|https://i.imgur.com/qHQTwJ9.png
+#NBTV - Báo và PTTH Ninh Bình|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728293640310/9aea44bf0f8d_640_360.png
+
+On BiBi|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/onbibi.png
+ON Cine|https://i.ibb.co/Jw0J5fnW/IMG-2509.png
+ON E- Channel|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/onechannel.png
+ON Info TV|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/oninfotv.png
+On Kids|https://assets-vtvcab.gviet.vn/images/v2/channel/20220613/2022061306/onkids5_1675158859.webp
+On Life|https://img-ali1.tv360.vn/image1/2023/07/19/09/1689732652862/f124f55c3587_640_360.png
+ON Movies|https://i.ibb.co/fdbgvtT8/IMG-2523.webp
+On Music|https://img-zlr1.tv360.vn/image1/2023/07/20/10/1689822524259/0f3a4d1ebfaf_640_360.png
+On O2TV|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/ono2tv.png
+ON Phim Viet|https://i.ibb.co/Swvp1vwM/IMG-2525.jpg
+ON Style TV|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/onstyle.png
+ON TRENDING TV|https://i.ibb.co/k1ccQNr/vcab17.webp
+ON V Family|https://i.ibb.co/HHfL7Dq/cocab20.webp
+ON Vie Drama|https://i.imgur.com/n7QICK7.png
+ON Vie Dramas (1080i)|https://i.ibb.co/VptvgFVx/IMG-2530.webp
+ON Vie Giải Trí|https://raw.githubusercontent.com/HaNoiIPTV/HaNoiIPTV.m3u/refs/heads/master/VTVCab1%20-%20ON%20Vie%20GI%E1%BA%A2I%20TR%C3%8D.png
+
 Phú Thọ|https://i.imgur.com/LXuRwJY.png
+
 Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
 Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
+
 Quảng Ninh 1|https://i.imgur.com/KVia0uU.png
 Quảng Ninh 3|https://i.imgur.com/AheAmMj.png
+#Quảng Ninh 3|https://i.imgur.com/ci6kzgL.png
+
 Quảng Trị|https://i.imgur.com/6qOelwt.png
+#QTTV - Báo và PTTH Quảng Trị|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/QTTV.jpg
+
+Quang Nam TV|https://i.imgur.com/uWiOoVg.png
+
+SCTV2|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV2TODAYTV.jpg
+SCTV3|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv3.png
+SCTV4|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv4.png
+SCTV6|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv6.png
+SCTV7|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv7.webp
+SCTV9|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV9.png
+SCTV11|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv11.png
+SCTV12|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv12.png
+SCTV13|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv13.png
+SCTV14|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv14.png
+SCTV16|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv16.png
+SCTV18|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv18.png
+SCTV19|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv19.png
+SCTV20|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV20.png
+
 Sơn La|https://i.postimg.cc/3JnLC20C/Snews.png
-Tây Ninh|https://i.imgur.com/HFm3hbC.png
-Thái Nguyên|https://i.imgur.com/P3pbab8.png
+
 Thanh Hóa|https://i.imgur.com/UwTCbZ5.png
+#TTV HD - Báo và PTTH Thanh Hóa|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821878406/58ff77e57117_640_360.png
+
+Tây Ninh|https://i.imgur.com/HFm3hbC.png
+#Tây Ninh TV - Báo và PTTH Tây Ninh|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/TayNinhTV.jpg
+#Tay Ninh TV|https://tayninhtv.vn/static/images/logo.png
+
+Thái Nguyên|https://i.imgur.com/P3pbab8.png
+#Thai Nguyen TV|https://thainguyentv.vn/modules/frontend/themes/ptthtn/images/logo.png
+#TN - Báo và PTTH Thái Nguyên|https://img-zlr1.tv360.vn/image1/2025/07/01/07/1751329966912/3ddadef93c24_640_360.png
+
+TVB VIỆT NAM|https://tvbaw-na.s3.us-west-1.amazonaws.com/hb/TVB%20Vietnam%20Banner_Side.jpg
+
+Tra Vinh TV|https://i.imgur.com/F12VdKO.png
+
+Tien Giang TV|https://i.imgur.com/yonKxgZ.png
 Tuyên Quang|https://i.imgur.com/Pfq3ix9.png
+
 Vĩnh Long 1|https://i.imgur.com/q3fjpYc.png
 Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
 Vĩnh Long 3|https://i.imgur.com/44c1Yoz.png
@@ -83,18 +196,10 @@ VTV6|https://i.postimg.cc/t7Jc81QZ/V6.png
 VTV7|https://i.postimg.cc/ykSbYwN8/V7.png
 VTV8|https://i.postimg.cc/k2QYWK8w/V8.png
 VTV9|https://i.postimg.cc/phT0NSS6/V9.png
-VTV1|https://r2.epg.io.vn/2026-09-17/1.png
-VTV2|https://i.imgur.com/BVwi3K3.png
-VTV3|https://i.imgur.com/7rLCvgS.png
-VTV4|https://i.imgur.com/9zVTtsA.png
-VTV5|https://s12811.cdn.mytvnet.vn/vimages/b5/5c/cc/c2/22/29/b5cc2-pvtv5hd-channel-unkn.png
-VTV5 Tây Nam Bộ|https://i.imgur.com/mIUWkDx.png
-VTVT5 Tây Nguyên|https://i.postimg.cc/HcZhVm5d/V5TN.png
-VTV6|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/VTV6.png
-VTV7|https://i.imgur.com/AgamSNe.png
-VTV8|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/vtv8.jpg
-VTV9|https://i.imgur.com/Ex1VkGQ.png
-VTV10|https://i.imgur.com/HCpqatZ.png
+
+
+
+
 
 30A Golf Kingdom|https://i.imgur.com/Lv53nh4.png
 A Spor|https://i.imgur.com/ZhkZzLf.png
@@ -102,17 +207,9 @@ ACC Digital Network|https://i.imgur.com/V6Kaqha.png
 ACC Network|https://i.imgur.com/TpCkbkT.png
 ADO TV|https://i.imgur.com/pxFamLr.png
 American Ninja Warrior|https://raw.githubusercontent.com/RoqueDJ/iptv-svg/main/1792421696158.png
-An Giang 1|https://i.imgur.com/mgp6RAU.png
-An Giang 2|https://i.imgur.com/efrauLr.png
-An Giang 3|https://i.imgur.com/gZUV4z8.png
-ANTV|https://img-zlr1.tv360.vn/image1/2020_09_23/1600822516608/b33963dc0df8_640_360.png
 Arena Sport 2|https://i.imgur.com/Yq3Jf19.png
 Arena4|https://i.imgur.com/uAaQDr6.png
 AS3 Sport TV|https://i.ibb.co/bRmGbsyV/A3-SPORTTV.jpg
-ATV1 - Báo và PTTH An Giang|https://angiangtv.vn/wp-content/uploads/2025/06/H4.png
-ATV3 - Báo và PTTH An Giang|https://angiangtv.vn/wp-content/uploads/2025/06/H5.png
-Bắc Ninh|https://i.imgur.com/sPyR9t6.png
-Bắc Ninh|https://i.imgur.com/sPyR9t6.png
 Bahrain Sports 1|https://i.imgur.com/fBpLsbC.png
 Bahrain Sports 2|https://i.imgur.com/ZkuZmIo.png
 Báu Vật Trời Cho|https://img-zlr1.tv360.vn/image1/2026/06/03/22/bc4677df/bc4677df-dbcd-4a57-844b-390414aa1778_640_360.jpg
@@ -122,15 +219,7 @@ BEK Sports West|https://i.imgur.com/1l3t5jd.png
 Belarus-5|https://i.imgur.com/NJsRFud.png
 Belarus-5|https://i.imgur.com/NJsRFud.png
 Bellator MMA|https://i.imgur.com/VBKoLHk.png
-BHTTV - Báo và PTTH Hà Tĩnh|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/BHTTV.webp
 Brondby TV|https://images.pluto.tv/channels/685029cda1e091e16ff57fc8/colorLogoPNG_1750246109707.png
-Cà Mau|https://i.imgur.com/ZKV1ok2.png
-Cần Thơ 1 HD - Báo và PTTH Thành Phố Cần Thơ|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/CanTho1.png
-Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
-Cần Thơ 3 HD - Báo và PTTH Thành Phố Cần Thơ|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/CanTho3.png
-Can Tho TV 2|https://i.ibb.co/JjVvkMsf/cantho2-2025.png
-Can Tho TV 2|https://i.ibb.co/JjVvkMsf/cantho2-2025.png
-Can Tho TV|https://i.ibb.co/MDhNH26J/cantho1-2025.png
 Canal Showsport|https://i.imgur.com/0L9tW3Z.png
 CANAL+ LIVE 9|https://s1.dmcdn.net/v/JjNMw1Z-Js5kwK7KN/x720
 Canal+ Sport 2 SK|https://static.wikia.nocookie.net/logopedia/images/a/ab/CANAL%2B_SPORT_2.svg/revision/latest?cb=20241028202739
@@ -141,7 +230,6 @@ Canal+ Sport 6 SK|https://static.wikia.nocookie.net/logopedia/images/3/3b/Canal%
 Canal+ Sport 7 SK|https://static.wikia.nocookie.net/logopedia/images/0/03/Canal%2B_Sport_7.svg/revision/latest?cb=20251106141245
 Canal+ Sport 8 SK|https://static.wikia.nocookie.net/logopedia/images/6/64/Canal%2B_Sport_8.svg/revision/latest?cb=20251106141257
 Canal+ Sport SK|https://static.wikia.nocookie.net/logopedia/images/2/25/Canal%2B_Sport_2023.svg/revision/latest?cb=20230901182304
-Cao Bang TV|https://i.imgur.com/dGonewm.png
 CazeTV|https://upload.wikimedia.org/wikipedia/en/thumb/6/64/Caz%C3%A9TV_logo.svg/1280px-Caz%C3%A9TV_logo.svg.png
 CBS Sports HQ|https://i.imgur.com/q8BENJg.png
 CCTV-5+|https://i.imgur.com/OK8mdJV.png
@@ -154,7 +242,6 @@ CNN News 18|https://i.imgur.com/WrmeIco.png
 Colimdo TV|https://i.imgur.com/ZeUgLCa.png
 Cricket Gold|https://resources.cricket-australia.pulselive.com/cricket-australia/photo/2025/07/25/836eddae-4329-4542-ad17-dcd37e9d951a/Cricket-Gold-1920x1080_noBG.png
 CRTV (Chile)|https://i2.paste.pics/bf68b159547597c39574aec9dd7c626a.png
-CRTV HD - Báo Cao Bằng|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728292499129/aeb3499f5824_640_360.png
 CRTV Sports and Entertainment|https://i.imgur.com/DiIei9F.png
 CT Sport|https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/%C4%8CT_sport_logo.png/960px-%C4%8CT_sport_logo.png
 Cuốc Xe Âm Phủ - Tập 1|https://images.fptplay53.net/media/OTT/VOD/2026/04/30/cuoc-xe-am-phu-fpt-play-1777541165464_Background_origin.jpg
@@ -162,10 +249,6 @@ Cuốc Xe Âm Phủ - Tập 2|https://images.fptplay53.net/media/OTT/VOD/2026/04
 Cuốc Xe Âm Phủ - Tập 3|https://images.fptplay53.net/media/OTT/VOD/2026/04/30/cuoc-xe-am-phu-fpt-play-1777541165464_Background_origin.jpg
 Cuốc Xe Âm Phủ - Tập 4|https://images.fptplay53.net/media/OTT/VOD/2026/04/30/cuoc-xe-am-phu-fpt-play-1777541165464_Background_origin.jpg
 Cuốc Xe Âm Phủ - Tập Cuối|https://images.fptplay53.net/media/OTT/VOD/2026/04/30/cuoc-xe-am-phu-fpt-play-1777541165464_Background_origin.jpg
-Đà Nẵng 2|https://i.postimg.cc/870Rs5Pm/dnrt2.png
-Da Nang TV 1|https://i.imgur.com/EOMuO1z.png
-Đắk Lắk|https://i.imgur.com/7CQqMeh.png
-Đắk Lắk|https://i.imgur.com/7CQqMeh.png
 DAZN 4|https://i.imgur.com/m7ga8bU.png
 DAZN Combat|https://i.postimg.cc/VsW3Jsrz/logo-DAZN-Combat.png
 DAZN Darts x Pluto TV|https://images.pluto.tv/channels/64b67f0424ade50008a3be17/colorLogoPNG.png
@@ -173,30 +256,9 @@ DAZN Heldinnen x Pluto TV|https://images.pluto.tv/channels/64afe50c5dc16600087f3
 DD Sports|https://dtil.tmsimg.com/assets/s158255_ld_h15_aa.png?lock=720x540
 DD Sports|https://dtil.tmsimg.com/assets/s158255_ld_h15_aa.png?lock=720x540
 Đèn Âm Hồn: Người Con Gái Nam Xương|https://daknong.1cdn.vn/2025/02/06/den-am-hon-review-phim-va-lich-chieu-tai-viet-nam.jpg
-Dien Bien TV|https://i.imgur.com/u308o8q.png
-Dien Bien TV|https://i.imgur.com/u308o8q.png
 DiviSport|https://i.logos-download.com/114030/29915-s5120-904df224e4c030fefcc45adda448b6e8.png/DiviSport_Logo_2023-s5120.png
-ĐNNRTV1 - Báo và PTTH Đồng Nai|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/ĐNNRTV1HD.png
-ĐNNRTV2 - Báo và PTTH Đồng Nai|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/ĐNNRTV2.png
-ĐNRT1 - Báo và PTTH Đà Nẵng|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/ĐNRT1.png
-ĐNRT2 - Báo và PTTH Đà Nẵng|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/DNRT2_logo.png
-Dong Nai TV 1|https://i.imgur.com/oQyioVa.png
-Dong Nai TV 1|https://i.imgur.com/oQyioVa.png
-Dong Nai TV 1|https://i.imgur.com/oQyioVa.png
-Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
-Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
-Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
-Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
-Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
-Dong Nai TV 2|https://i.imgur.com/tNKPSkO.png
-Dong Nai TV 3|https://i.imgur.com/6P39BiA.png
-Đồng Tháp 1|https://i.imgur.com/TqAz7ET.png
-Đồng Tháp 2|https://i.imgur.com/PfETBEp.png
-Dong Thap TV|https://i.ibb.co/XFX7yw0/logo2-1.png
 Doraemon Movie 44: Nobita và cuộc phiêu lưu vào thế giới trong tranh (bản lồng tiếng)|https://kenh14cdn.com/203336854389633024/2025/5/24/ngangcc690d7e-1620-4524-aafa-a7496c81f6f6-174807929920015425666-1748084313655-17480843144601375971451.jpg
 DraftKings Network|https://i.imgur.com/SFYhgrt.png
-DRT HD - Báo và PTTH Đắk Lắk|https://img-zlr1.tv360.vn/image1/2025/06/30/11/1751256466336/bda77a407209_640_360.png
-ĐTV HD - Báo Điện Biên Phủ|https://img-zlr1.tv360.vn/image1/2020_09_23/1600823593760/3a9a9e608e8d_640_360.png
 Dynamo Kyiv TV|https://i.imgur.com/ymxmyyG.png
 Equalympic|https://i.imgur.com/ixSj4H7.png
 Equidia|https://i.imgur.com/QPpbRcZ.png
@@ -239,43 +301,14 @@ FUEL TV AU|https://i.imgur.com/I8mviBy.png
 FUEL TV|https://i.imgur.com/I8mviBy.png
 Futbol TV|https://i.ibb.co/h1gQSkbB/Futbol-TV.png
 Game+|https://i.imgur.com/Lj69WbR.png
-Gia Lai TV|https://i.imgur.com/oUSJX0X.png
 Glory Kickboxing Poland|https://i.imgur.com/tS7Ub7i.png
 Go3 Sport 1|https://i.imgur.com/0eZa0qh.png
 Golazo Network|https://images.pluto.tv/channels/63a0e33a45264d000850ed7e/colorLogoPNG_1731835813404.png
 Golf Channel|https://www.sms.cz/kategorie/televize/bmp/loga/velka/golfchannel.png
-Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
-Hà Nội 2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
-Hải Phòng 3|https://i.imgur.com/FEvJhRf.png
-Hải Phòng|https://i.imgur.com/iq9JLb9.png
-HanoiTV1|https://i.imgur.com/Je3K25E.png
 Hoàng Tử Quỷ|https://cdn.galaxycine.vn/media/2025/11/25/hoang-tu-quy-750_1764065943548.jpg
 Horse TV|https://i.imgur.com/nK4UUX4.png
 HTSpor TV|https://www.htspor.com/images/manifest/social-share-logo.png
 HTV Argentina|https://i.imgur.com/NlKFNHS.png
-HTV1|https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/HTV1.png/960px-HTV1.png
-HTV2|https://upload.wikimedia.org/wikipedia/commons/d/d2/HTV2_-_Vie_Channel.png
-HTV2|https://upload.wikimedia.org/wikipedia/commons/d/d2/HTV2_-_Vie_Channel.png
-HTV3|https://upload.wikimedia.org/wikipedia/commons/6/65/HTV3-2018.png
-HTV3|https://upload.wikimedia.org/wikipedia/commons/6/65/HTV3-2018.png
-HTV4|https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/HTV4_logo.webp/960px-HTV4_logo.webp.png
-HTV4|https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/HTV4_logo.webp/960px-HTV4_logo.webp.png
-HTV5|https://i.imgur.com/EI0mJRf.png
-HTV7|https://upload.wikimedia.org/wikipedia/commons/c/c0/HTV7_logo.webp
-HTV7|https://upload.wikimedia.org/wikipedia/commons/c/c0/HTV7_logo.webp
-HTV9|https://upload.wikimedia.org/wikipedia/commons/b/bf/HTV9_logo.webp
-HTV9|https://upload.wikimedia.org/wikipedia/commons/b/bf/HTV9_logo.webp
-HTVC Du Lịch|https://i.imgur.com/mDemDFL.png
-HTVC Family|https://i.ibb.co/BVQtkHgF/IMG-2899.png
-HTVC Gia Đình|https://i.imgur.com/Al6xJme.png
-HTVC Phim|https://i.imgur.com/P0wqvmu.png
-HTVC Phim|https://i.imgur.com/P0wqvmu.png
-HTVC Phụ Nữ|https://i.imgur.com/FxzpvHI.png
-HTVC Thuần Việt|https://i.imgur.com/KtMeo6q.png
-HTVC Women|https://upload.wikimedia.org/wikipedia/vi/a/a9/HTVC_PHUNU.png
-HTVC+|https://i.imgur.com/Tkjs3C5.png
-Hung Yen TV|https://i.imgur.com/TH1DWdm.png
-Hung Yen TV|https://i.imgur.com/TH1DWdm.png
 Inter TV (Italy)|https://i.imgur.com/FUTqh2L.png
 InTrouble|https://i.imgur.com/a40chFI.png
 InTrouble|https://i.imgur.com/a40chFI.png
@@ -283,21 +316,14 @@ IRIB 3|https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/IRIB_TV3_LOGO.s
 ITV Deportes|https://iili.io/J1kV1Bn.png
 Jordan Sport|https://i.imgur.com/2EmrZPQ.png
 Kabaddi 24x7|https://papaji.freetvindia.com/media/kabaddi_24x7.png
-Khánh Hòa 1|https://i.postimg.cc/14vcbJhC/KH1.png
-Khánh Hòa|https://i.postimg.cc/2qn7JYr6/KH.png
 Khế Ước Bán Dâu|https://tintuc-divineshop.cdn.vccloud.vn/wp-content/uploads/2025/08/164142635_khe-uoc-ban-dau.webp
 Kozoom TV|https://i.imgur.com/M1Ee79b.png
 KTV Sport Plus|https://i.imgur.com/l4oX0gf.png
 KTV Sport|https://i.imgur.com/R1hGX1d.png
 Lacrosse TV|https://yt3.googleusercontent.com/ytc/AIdro_m_xSJFydxZ9QBU-85OuchjmzS0Bo0_Tukmk7to8hBfyl8=s512-c-k-c0x00ffffff-no-rj
-Lai Châu|https://i.imgur.com/n02cvKQ.png
-Lâm Đồng 1|https://i.postimg.cc/f35Jkqv6/LD1.png
-Lâm Đồng 2|https://i.postimg.cc/n99zRFfP/LD2.png
 Làm Giàu Với Ma (Betting With Ghost)|https://haniff.vn/wp-content/uploads/2024/10/Lam-giau-voi-ma-2.jpg
-Lào Cai|https://i.imgur.com/Vd0P0rx.png
 L'Equipe|https://i.imgur.com/t35zhM9.png
 LRT Plius|https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/LRT_Plius_Logo_2022.svg/960px-LRT_Plius_Logo_2022.svg.png
-LTV - Báo Lai Châu|https://images.fptplay53.net/media/channels/icon_channel_lai-chau_165649245279.png
 M Sports|https://msports.pk/wp-content/uploads/2026/02/m-sports-300.png
 M4 Sport|https://i.imgur.com/TQ4uJZk.png
 MadeinBO TV|https://i.imgur.com/47X44DD.png
@@ -318,40 +344,11 @@ MUTV|https://m.media-amazon.com/images/I/611NwkDJjOL.png
 Nautical Channel|https://i.imgur.com/2ByDyzL.png
 NBA TV|https://upload.wikimedia.org/wikipedia/en/thumb/d/d2/NBA_TV.svg/960px-NBA_TV.svg.png
 NBC Sports NOW|https://i.imgur.com/EzNf2Yx.png
-NBTV - Báo và PTTH Ninh Bình|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728293640310/9aea44bf0f8d_640_360.png
 NFL Channel|https://i.imgur.com/mPGtwAP.png
-Nghe An TV|https://i.imgur.com/d9YEEwC.png
-Nghe An TV|https://i.imgur.com/d9YEEwC.png
-Nghe An TV|https://i.imgur.com/d9YEEwC.png
 NHL AntenaPlay|https://assets.antenaplay.ro/2024/10/25/SN0nevshXwKDcZ2Tw1jm.png
 NHL Network|https://i.imgur.com/UNZ8bef.png
-Ninh Bình|https://i.imgur.com/pL4NqYO.png
-NTV - Báo và PTTH Nghệ An|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821989411/75bfb004e210_640_360.png
 Okko Futbol|https://xml-epgservice.cdnvideo.ru/EPGService/hs/xmldata/852f4b92-cae5-463e-aad6-cd8844c5a49/logo/8986.png
 Oman Sports TV|https://i.imgur.com/1omi7p8.png
-On BiBi|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/onbibi.png
-ON Cine|https://i.ibb.co/Jw0J5fnW/IMG-2509.png
-ON Cine|https://i.ibb.co/Jw0J5fnW/IMG-2509.png
-ON E- Channel|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/onechannel.png
-ON Info TV|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/oninfotv.png
-On Kids|https://assets-vtvcab.gviet.vn/images/v2/channel/20220613/2022061306/onkids5_1675158859.webp
-On Life|https://img-ali1.tv360.vn/image1/2023/07/19/09/1689732652862/f124f55c3587_640_360.png
-ON Movies|https://i.ibb.co/fdbgvtT8/IMG-2523.webp
-ON Movies|https://i.ibb.co/fdbgvtT8/IMG-2523.webp
-On Music|https://img-zlr1.tv360.vn/image1/2023/07/20/10/1689822524259/0f3a4d1ebfaf_640_360.png
-On O2TV|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/ono2tv.png
-ON Phim Viet|https://i.ibb.co/Swvp1vwM/IMG-2525.jpg
-ON Phim Viet|https://i.ibb.co/Swvp1vwM/IMG-2525.jpg
-ON Style TV|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/onstyle.png
-ON TRENDING TV|https://i.ibb.co/k1ccQNr/vcab17.webp
-ON V Family|https://i.ibb.co/HHfL7Dq/cocab20.webp
-ON Vie Drama|https://i.imgur.com/n7QICK7.png
-ON Vie Drama|https://i.imgur.com/n7QICK7.png
-ON Vie Drama|https://i.imgur.com/n7QICK7.png
-ON Vie Drama|https://i.imgur.com/n7QICK7.png
-ON Vie Dramas (1080i)|https://i.ibb.co/VptvgFVx/IMG-2530.webp
-ON Vie Dramas (1080i)|https://i.ibb.co/VptvgFVx/IMG-2530.webp
-ON Vie Giải Trí|https://raw.githubusercontent.com/HaNoiIPTV/HaNoiIPTV.m3u/refs/heads/master/VTVCab1%20-%20ON%20Vie%20GI%E1%BA%A2I%20TR%C3%8D.png
 Oshi No Ko Phần 3 - Tập 1|https://images.fptplay53.net/media/OTT/VOD/2026/01/12/dua-con-cua-than-tuong-phan-3-fpt-play-1768204408459_Background_origin.jpg
 Oshi No Ko Phần 3 - Tập 10|https://images.fptplay53.net/media/OTT/VOD/2026/01/12/dua-con-cua-than-tuong-phan-3-fpt-play-1768204408459_Background_origin.jpg
 Oshi No Ko Phần 3 - Tập 11|https://images.fptplay53.net/media/OTT/VOD/2026/01/12/dua-con-cua-than-tuong-phan-3-fpt-play-1768204408459_Background_origin.jpg
@@ -364,8 +361,6 @@ Pac-12 Insider|https://i.imgur.com/736QREy.png
 PBR RidePass|https://i.imgur.com/gUxH97E.png
 PFL MMA|https://provider-static.plex.tv/epg/cms/production/96dd0531-b500-4bd4-93ca-763cbf46defe/1500x1000_PFL_SHIELD_DARK_BG_-_Allie_Dinsmore.png
 PGA Tour|https://i.imgur.com/J0TY9dG.png
-Phú Thọ|https://i.imgur.com/LXuRwJY.png
-Phú Thọ|https://i.imgur.com/LXuRwJY.png
 Pluto TV Competition|https://images.pluto.tv/channels/603fde9026ecbf0007752c2c/colorLogoPNG.png
 Pluto TV Deportes|https://images.pluto.tv/channels/5dcde07af1c85b0009b18651/colorLogoPNG_1766080575034.png
 Pluto TV Esportes|https://images.pluto.tv/channels/5f32d2db0af67400077f29c4/colorLogoSVG_1780355759776.svg
@@ -386,15 +381,6 @@ Pluto TV Sport (Sweden)|https://images.pluto.tv/channels/6357f3de3643ba0007bc0b5
 PokerGo|https://i.imgur.com/1603HED.png
 Prima Sport Czechia|https://static.wikia.nocookie.net/logopedia/images/6/69/Prima_Sport_%28Czech_Republic%29.svg/revision/latest?cb=20260728085614
 Prime (Syria)|https://prime1tv.com/wp-content/uploads/2025/12/7-1.png
-QPVN|https://i.imgur.com/GQO7UNu.png
-QPVN|https://i.imgur.com/GQO7UNu.png
-QTTV - Báo và PTTH Quảng Trị|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/QTTV.jpg
-Quang Nam TV|https://i.imgur.com/uWiOoVg.png
-Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
-Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
-Quảng Ninh 1|https://i.imgur.com/KVia0uU.png
-Quảng Ninh 3|https://i.imgur.com/ci6kzgL.png
-Quảng Trị|https://i.imgur.com/6qOelwt.png
 RACER International|https://provider-static.plex.tv/epg/cms/production/dd4e5871-4347-49e3-9ea1-a8770ea9c518/RACER_Intl_logo_1500x1000.png
 Racer Select|https://i.imgur.com/CurtYvn.png
 Rally TV|https://i.postimg.cc/WtLq2C7c/logo-Rally-Tv1.png
@@ -407,31 +393,6 @@ Red Bull TV US|https://images.pluto.tv/channels/5e7cb84a172a0f0007da69e4/colorLo
 Red Bull TV|https://images.pluto.tv/channels/5e7cb84a172a0f0007da69e4/colorLogoPNG.png
 Red Bull TV|https://images.pluto.tv/channels/5e7cb84a172a0f0007da69e4/colorLogoPNG.png
 Right Now TV|https://i.imgur.com/u8zXUOg.png
-SCTV11|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv11.png
-SCTV11|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv11.png
-SCTV11|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv11.png
-SCTV11|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv11.png
-SCTV12|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv12.png
-SCTV13|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv13.png
-SCTV14|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv14.png
-SCTV14|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv14.png
-SCTV16|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv16.png
-SCTV16|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv16.png
-SCTV18|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv18.png
-SCTV18|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv18.png
-SCTV19|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv19.png
-SCTV19|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv19.png
-SCTV2|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV2TODAYTV.jpg
-SCTV2|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV2TODAYTV.jpg
-SCTV20|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV20.png
-SCTV3|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv3.png
-SCTV4|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv4.png
-SCTV4|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv4.png
-SCTV6|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv6.png
-SCTV6|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv6.png
-SCTV7|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/sctv7.webp
-SCTV9|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV9.png
-SCTV9|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV9.png
 Setanta Sports 1 Eurasia|https://i.imgur.com/zlJK7ca.png
 Setanta Sports 2 Eurasia|https://i.imgur.com/ouHunnK.png
 Sky Racing 1|https://i.imgur.com/Hf0EiaW.png
@@ -464,37 +425,23 @@ Swerve Combat|https://i.imgur.com/eFZh7aG.png
 Swerve Sports|https://i.imgur.com/GT0Yi2T.png
 T Sports 7|https://i.imgur.com/KyI0s5n.png
 talkSPORT|https://upload.wikimedia.org/wikipedia/en/9/9d/Talksport_logo.png
-Tây Ninh TV - Báo và PTTH Tây Ninh|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/TayNinhTV.jpg
-Tay Ninh TV|https://tayninhtv.vn/static/images/logo.png
-Tay Ninh TV|https://tayninhtv.vn/static/images/logo.png
 Teletrak TV|https://i.imgur.com/NoJvlig.png
 Tennis Channel 2|https://image-resizer-cloud-cdn.api.cms.amdvids.com/image/7382296F-97F6-4450-B77B-8FE331FC04F6/3-1x1.png
 Tennis Channel 2|https://image-resizer-cloud-cdn.api.cms.amdvids.com/image/7382296F-97F6-4450-B77B-8FE331FC04F6/3-1x1.png
 Tennis Channel|https://i.imgur.com/tsljAnY.png
-Thai Nguyen TV|https://thainguyentv.vn/modules/frontend/themes/ptthtn/images/logo.png
 Thế Hệ Kỳ Tích|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/Th%E1%BA%BF%20H%E1%BB%87%20K%E1%BB%B3%20T%C3%ADch.jpg
-THLC HD - Báo và PTTH Lào Cai|https://lichphatsongtivi.com/storage/images/thumbnails/lich-phat-song-thlc.png
 Thỏ Ơi|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/Th%E1%BB%8F%20%C6%A0i.jpg
-THP3 - Báo và PTTH Hải Phòng|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/THP3.png
-Tien Giang TV|https://i.imgur.com/yonKxgZ.png
 Tigo Sports (Paraguay)|https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Tigo_Sports_2025.png/960px-Tigo_Sports_2025.png
 TJK TV|https://i.imgur.com/3zHdkYG.png
-TN - Báo và PTTH Thái Nguyên|https://img-zlr1.tv360.vn/image1/2025/07/01/07/1751329966912/3ddadef93c24_640_360.png
 Tour Spot TV|https://imgur.com/khj869k.png
 TR Sport|https://i.imgur.com/ELXmaqg.png
-Tra Vinh TV|https://i.imgur.com/F12VdKO.png
-Tra Vinh TV|https://i.imgur.com/F12VdKO.png
 Trace Sport Stars Russia|https://i.imgur.com/FabFP5A.png
 Trace Sport Stars|https://i.imgur.com/FabFP5A.png
 Trace Sport Stars|https://i.imgur.com/FabFP5A.png
 Truy Tìm Long Diên Hương|https://cdn-images.vtv.vn/zoom/554_346/66349b6076cb4dee98746cf1/2025/09/19/truy-tim-long-dien-huong-67756442926310209483416-92025497027105625698228.jpg
 TSN The Ocho|https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/CA1400003R3_20240709T002034SQUARE.png
-TTV HD - Báo và PTTH Thanh Hóa|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821878406/58ff77e57117_640_360.png
 Turkmenistan Sport|https://i.imgur.com/n6vITLu.png
-Tuyên Quang|https://i.imgur.com/Pfq3ix9.png
 TV BRICS Portuguese|https://i.imgur.com/vLpm8tN.png
-TVB VIỆT NAM|https://tvbaw-na.s3.us-west-1.amazonaws.com/hb/TVB%20Vietnam%20Banner_Side.jpg
-TVB VIỆT NAM|https://tvbaw-na.s3.us-west-1.amazonaws.com/hb/TVB%20Vietnam%20Banner_Side.jpg
 TVR Sport|https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/TVR_Sport_Logo_2023.svg/960px-TVR_Sport_Logo_2023.svg.png
 TVS Bowling Network|https://www.watchyour.tv/channels/logo/tvs-bowling-network.jpg
 TVS Boxing|https://i.imgur.com/30ZoF75.png
@@ -505,31 +452,7 @@ TVS Women Sports|https://i.imgur.com/8hC4PfF.png
 TyC Sports|https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/TyC_Sports_logo.svg/960px-TyC_Sports_logo.svg.png
 Unbeaten|https://i.imgur.com/LmkNt3v.png
 viju+ Sport|https://i.imgur.com/fXESG0l.png
-Vĩnh Long 1|https://i.imgur.com/q3fjpYc.png
-Vĩnh Long 1|https://i.imgur.com/q3fjpYc.png
-Vĩnh Long 1|https://i.imgur.com/q3fjpYc.png
-Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
-Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
-Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
-Vĩnh Long 3|https://i.imgur.com/44c1Yoz.png
-Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
-Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
-Vĩnh Long 5|https://i.imgur.com/hSdSUqx.png
 Voyo Sport 1 (1080i)|https://static.wikia.nocookie.net/logopedia/images/a/a3/VoyoSport1.svg
-
-VTV10|https://i.postimg.cc/4nY8BrVK/V10.png
-VTV1|https://i.postimg.cc/F1FvzstX/V1.png
-VTV2|https://i.postimg.cc/yDR4tDRm/V2.png
-VTV3|https://i.postimg.cc/B8cWZRM0/V3.png
-VTV4|https://i.postimg.cc/Wqzxnzj0/V4.png
-VTV5|https://i.postimg.cc/ZC91vWVM/V5.png
-VTV5 Tây Nguyên|https://i.postimg.cc/HcZhVm5d/V5TN.png
-VTV5 Tây Nam Bộ|https://i.postimg.cc/68ngzDsM/V5TNB.png
-VTV6|https://i.postimg.cc/t7Jc81QZ/V6.png
-VTV7|https://i.postimg.cc/ykSbYwN8/V7.png
-VTV8|https://i.postimg.cc/k2QYWK8w/V8.png
-VTV9|https://i.postimg.cc/phT0NSS6/V9.png
-
 Women's Sports Network|https://i.imgur.com/rhIwUcQ.png
 World of Freesports|https://i.imgur.com/lta5Mog.png
 World Poker Tour Germany|https://i.imgur.com/98kLMjj.png
