@@ -62,11 +62,17 @@ private fun App(vm: MainViewModel = viewModel()) {
     }
 
     var lastTop by remember { mutableStateOf("") }   // nút đã focus trước khi vào danh sách kênh / mở kênh
+    var lastPlayed by remember { mutableStateOf("") }   // id kênh đang xem lúc thoát: Back sẽ focus vào ô kênh đó
     var playList by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var playIndex by remember { mutableIntStateOf(-1) }
 
     if (playIndex >= 0 && playList.isNotEmpty()) {
-        BackHandler { playIndex = -1 }
+        BackHandler {
+            // Kênh đang xem nằm ngoài danh sách đang hiện (vd nhập số kênh): chuyển sang "Tất cả" để focus được vào ô của nó
+            val id = lastPlayed
+            if (id.isNotEmpty() && shown.none { it.id == id } && ordered.any { it.id == id }) vm.setGroup("")
+            playIndex = -1
+        }
         PlayerScreen(
             channels = playList,
             startIndex = playIndex,
@@ -79,6 +85,9 @@ private fun App(vm: MainViewModel = viewModel()) {
             scoreOf = vm::linkScore,
             onPickLink = vm::setPreferred,
             onResult = vm::report,
+            heightOf = vm::linkHeight,
+            onHeight = vm::reportHeight,
+            onCurrent = { lastPlayed = it.id },
             onExit = { playIndex = -1 },
         )
     } else {
@@ -93,6 +102,7 @@ private fun App(vm: MainViewModel = viewModel()) {
                 }
             },
             restoreKey = lastTop,
+            focusChannelId = lastPlayed,
             onTopFocus = { lastTop = it },
             onGroup = vm::setGroup,
             onFav = vm::toggleFav,
@@ -109,6 +119,8 @@ private fun App(vm: MainViewModel = viewModel()) {
             onMove = vm::moveChannel,
             onMerge = vm::mergeChannel,
             onUnmerge = vm::unmerge,
+            onSetLogo = vm::setLogo,
+            heightOf = vm::linkHeight,
             onSetNumber = vm::setNumber,
             onClearNumber = vm::clearNumber,
             onPickLink = vm::setPreferred,

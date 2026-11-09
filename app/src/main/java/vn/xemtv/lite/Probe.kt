@@ -87,6 +87,12 @@ class ProbeCtl {
 }
 
 class Prober {
+    private val heights = ConcurrentHashMap<String, Int>()      // link -> chiều cao video lớn nhất khai báo trong master playlist
+    private val resRe = Regex("RESOLUTION=\\d+x(\\d+)")
+
+    /** Độ phân giải (chiều cao, VD 720/1080) lần đo gần nhất; 0 = chưa biết. */
+    fun heightOf(url: String): Int = heights[url] ?: 0
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(6, TimeUnit.SECONDS)
@@ -158,6 +164,8 @@ class Prober {
                 if (codecs.isNotEmpty() && AUDIO_CODECS.none { codecs.contains(it) } && !text.contains("TYPE=AUDIO")) return 0
                 if (codecs.isNotEmpty() && VIDEO_CODECS.none { codecs.contains(it) }) return 0   // chỉ có âm thanh
                 bandwidth = Regex("BANDWIDTH=(\\d+)").findAll(text).maxOfOrNull { it.groupValues[1].toLongOrNull() ?: 0L } ?: 0L
+                val hMax = resRe.findAll(text).maxOfOrNull { it.groupValues[1].toIntOrNull() ?: 0 } ?: 0
+                if (hMax > 0) heights[url] = hMax
                 val variantUrl = uris(text).firstOrNull()?.let { resolve(base, it) } ?: return 0
                 val r2 = get(variantUrl, 128 * 1024, ctl)
                 if (r2.code !in 200..299) return 0

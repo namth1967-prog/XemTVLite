@@ -42,6 +42,8 @@ data class UiState(
     val merges: Map<String, String> = emptyMap(),         // gộp thủ công: id kênh bị gộp -> id kênh đích
     val customNumbers: Map<String, Int> = emptyMap(),     // số kênh người dùng tự đặt
     val preferred: Map<String, String> = emptyMap(),      // link mặc định của từng kênh
+    val customLogos: Map<String, String> = emptyMap(),    // logo người dùng tự đặt: id kênh -> link ảnh
+    val logoIndex: Map<String, String> = emptyMap(),      // logo tự tìm trên GitHub: khoá tên kênh -> link ảnh
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
     val notice: String? = null,                    // thông báo ngắn (VD: kết quả bấm Tải lại)
@@ -78,6 +80,11 @@ data class UiState(
                 c.id !in hidden &&
                     (c.urls.any { it in ok } || (c.group in userGroups && c.urls.any { it !in dead }))
             }
+            .map { c ->
+                // Logo: người dùng tự đặt > logo trong nguồn > logo tự tìm trên GitHub
+                val lg = customLogos[c.id] ?: c.logo.ifBlank { logoIndex[dedupeKey(c.name)] ?: "" }
+                if (lg != c.logo) c.copy(logo = lg) else c
+            }
             .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
             .toList()
     }
@@ -101,6 +108,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ghToken = repo.ghToken, foundCount = repo.found.size, autoFill = repo.autoFill,
             hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler,
             merges = repo.merges, customNumbers = repo.customNumbers, preferred = repo.preferred,
+            customLogos = repo.customLogos, logoIndex = repo.logoIndex(),
         )
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -118,6 +126,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         Leveler.enabled = repo.leveler
         load()
+        // Tự tìm logo cho kênh thiếu logo (nền, không bắt buộc, tối đa 1 lần/7 ngày)
+        viewModelScope.launch { if (repo.refreshLogoIndex()) _ui.update { it.copy(logoIndex = repo.logoIndex()) } }
     }
 
     private fun refreshHealth() = _ui.update { it.copy(ok = repo.health.ok(), dead = repo.health.dead()) }
@@ -264,7 +274,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val pref = preferred?.takeIf { it in urls }
         val pool = (listOfNotNull(pref) + all.filter { it != pref }).take(6)
         val res = prober.measure(pool)
-        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.penalize(u) }
+        for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc, prober.heightOf(u)) else h.penalize(u) }
         h.save()
         refreshHealth()
         val live = pool.filter { (res[it] ?: -1) > 0 }.sortedByDescending { h.score(it) }
@@ -276,6 +286,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun linkScore(url: String): Int = repo.health.score(url)
+    fun linkHeight(url: String): Int = repo.health.height(url)
+
+    /** Độ phân giải thực tế khi đang phát (chiều cao video). */
+    fun reportHeight(url: String, h: Int) {
+        if (repo.health.setHeight(url, h)) repo.health.save()
+    }
+
+    /** Đặt (hoặc xoá, nếu [url] trống) logo riêng cho kênh. */
+    fun setLogo(c: Channel, url: String) {
+        val m = LinkedHashMap(repo.customLogos)
+        if (url.isBlank()) m.remove(c.id) else m[c.id] = url.trim()
+        repo.customLogos = m
+        _ui.update { it.copy(customLogos = m) }
+        showNotice(if (url.isBlank()) "Đã xoá logo riêng của \"${c.name}\"." else "Đã đặt logo cho \"${c.name}\".")
+    }
 
     /** Kết quả khi đang xem: phát được thật -> xóa lỗi; lỗi 1 lần chưa loại, lỗi liên tiếp 2 lần mới coi là chết. */
     fun report(c: Channel, ok: Boolean, url: String?) {
@@ -408,7 +433,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 if (!isActive) return@withPermit
                                 var sc = prober.probe(u)
                                 if (sc == 0) { delay(1_500); sc = prober.probe(u) }   // đo lại sau 1,5 s để không loại oan link chập chờn
-                                if (sc > 0) { h.succeed(u, sc); good++; if (good >= 2) break }
+                                if (sc > 0) { h.succeed(u, sc, prober.heightOf(u)); good++; if (good >= 2) break }
                                 else if (sc == HARD_DEAD) h.kill(u)      // 404 / sai tên miền / từ chối kết nối: chết thật
                                 else retryLater.add(u)                   // chậm hoặc ngắt quãng: đo lại ở lượt 2
                             }
@@ -430,7 +455,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             sem2.withPermit {
                                 if (!isActive) return@withPermit
                                 val sc = prober.probe(u)
-                                if (sc > 0) h.succeed(u, sc) else h.kill(u)
+                                if (sc > 0) h.succeed(u, sc, prober.heightOf(u)) else h.kill(u)
                                 done.incrementAndGet()
                                 maybePush()
                             }

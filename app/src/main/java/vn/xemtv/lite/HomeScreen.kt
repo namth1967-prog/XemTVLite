@@ -55,6 +55,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
@@ -80,6 +81,7 @@ fun HomeScreen(
     numbers: Map<String, Int>,
     onPlayNumber: (Int) -> Unit,
     restoreKey: String,
+    focusChannelId: String,
     onTopFocus: (String) -> Unit,
     onGroup: (String) -> Unit,
     onFav: (Channel) -> Unit,
@@ -105,10 +107,14 @@ fun HomeScreen(
     onClearNumber: (Channel) -> Unit,
     onPickLink: (Channel, String) -> Unit,
     scoreOf: (String) -> Int,
+    onSetLogo: (Channel, String) -> Unit,
+    heightOf: (String) -> Int,
     onRestore: () -> Unit,
 ) {
     var numberFor by remember { mutableStateOf<Channel?>(null) }   // hộp đổi số kênh
     var linksFor by remember { mutableStateOf<Channel?>(null) }    // hộp chọn link phát
+    var logoFor by remember { mutableStateOf<Channel?>(null) }     // hộp đặt logo
+    var mergeSource by remember { mutableStateOf<Channel?>(null) } // đang gộp: chọn kênh đích bằng cách di chuyển tới và nhấn OK
     var showSettings by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<Channel?>(null) }   // kênh đang mở menu nhấn giữ
     var numBuf by remember { mutableStateOf("") }
@@ -157,10 +163,24 @@ fun HomeScreen(
             runCatching { req(key).requestFocus() }
         }
     }
-    LaunchedEffect(Unit) { if (restoreKey.isNotEmpty()) focusTop(restoreKey) }   // vừa thoát màn hình phát
+    val gridState = rememberLazyGridState()
+    val cardReq = remember { FocusRequester() }
+    LaunchedEffect(Unit) {   // vừa thoát màn hình phát: focus vào ô kênh vừa xem
+        val idx = if (focusChannelId.isNotEmpty()) shown.indexOfFirst { it.id == focusChannelId } else -1
+        if (idx >= 0) {
+            runCatching { gridState.scrollToItem(idx) }
+            repeat(8) {
+                delay(80)
+                runCatching { cardReq.requestFocus() }
+                if (gridFocused) return@LaunchedEffect
+            }
+        } else if (restoreKey.isNotEmpty()) focusTop(restoreKey)
+    }
     BackHandler(enabled = gridFocused && !showSettings && menuFor == null) {
         scope.launch { focusTop(topKey.ifEmpty { "all" }) }
     }
+    // Đang gộp kênh: Back để hủy (khai báo sau nên được ưu tiên hơn)
+    BackHandler(enabled = mergeSource != null && !showSettings && menuFor == null) { mergeSource = null }
 
     Column(
         Modifier
@@ -184,6 +204,14 @@ fun HomeScreen(
             Spacer(Modifier.height(6.dp))
             Text(it, fontSize = 14.sp, color = Color(0xFFFFC857))
         }
+        mergeSource?.let { src ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Đang gộp \"${src.name}\": di chuyển đến kênh đích (kênh chính) rồi nhấn OK. Back để hủy.",
+                fontSize = 15.sp, color = Color(0xFFFFC857),
+                modifier = Modifier.background(Color(0x33FFC857)).padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
         if (ui.scanTotal > 0) {
             Spacer(Modifier.height(6.dp))
             Text("${ui.scanLabel}: ${ui.scanDone}/${ui.scanTotal} · đang hiện ${ui.alive.size} kênh", fontSize = 14.sp, color = Muted)
@@ -193,6 +221,7 @@ fun HomeScreen(
         Box(Modifier.fillMaxSize()) {
             if (shown.isNotEmpty()) {
                 LazyVerticalGrid(
+                    state = gridState,
                     modifier = Modifier.onFocusChanged { gridFocused = it.hasFocus },
                     columns = GridCells.Adaptive(160.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -200,7 +229,17 @@ fun HomeScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     items(shown, key = { it.id }) { c ->
-                        ChannelCard(c, numbers[c.id] ?: 0, c.id in ui.favorites, { onPlay(c) }, { menuFor = c })
+                        ChannelCard(
+                            c, numbers[c.id] ?: 0, c.id in ui.favorites,
+                            onClick = {
+                                val src = mergeSource
+                                if (src == null) onPlay(c)
+                                else { if (src.id != c.id) onMerge(src, c); mergeSource = null }   // OK trên kênh đích = gộp xong
+                            },
+                            onLong = { if (mergeSource == null) menuFor = c },
+                            modifier = if (c.id == focusChannelId) Modifier.focusRequester(cardReq) else Modifier,
+                            marked = mergeSource?.id == c.id,
+                        )
                     }
                 }
             }
@@ -235,12 +274,13 @@ fun HomeScreen(
     menuFor?.let { c ->
         ChannelMenu(
             c = c, number = numbers[c.id] ?: 0, fav = c.id in ui.favorites, groups = order.distinct(),
-            all = ui.alive, numbers = numbers, mergedCount = ui.merges.values.count { it == c.id },
+            mergedCount = ui.merges.values.count { it == c.id },
             onDismiss = { menuFor = null },
             onFav = { onFav(c); menuFor = null },
             onHide = { onHide(c); menuFor = null },
             onMove = { g -> onMove(c, g); menuFor = null },
-            onMerge = { t -> onMerge(c, t); menuFor = null },
+            onMergeStart = { mergeSource = c; menuFor = null },     // đóng menu, rồi chọn kênh đích ngay trên lưới
+            onLogo = { logoFor = c; menuFor = null },
             onUnmerge = { onUnmerge(c); menuFor = null },
             onPickLink = { linksFor = c; menuFor = null },
             onNumber = { numberFor = c; menuFor = null },
@@ -256,14 +296,22 @@ fun HomeScreen(
     }
     linksFor?.let { c ->
         LinkPickerDialog(
-            name = c.name, urls = c.urls, current = ui.preferred[c.id], ok = ui.ok, dead = ui.dead, scoreOf = scoreOf,
+            name = c.name, urls = c.urls, current = ui.preferred[c.id], ok = ui.ok, dead = ui.dead, scoreOf = scoreOf, heightOf = heightOf,
             onPick = { u -> onPickLink(c, u); linksFor = null },
             onDismiss = { linksFor = null },
         )
     }
+    logoFor?.let { c ->
+        LogoDialog(
+            name = c.name, current = ui.customLogos[c.id].orEmpty(),
+            onDismiss = { logoFor = null },
+            onSave = { u -> onSetLogo(c, u); logoFor = null },
+            onClear = { onSetLogo(c, ""); logoFor = null },
+        )
+    }
 }
 
-private enum class MenuMode { MAIN, MOVE, MERGE, MERGE_LIST }
+private enum class MenuMode { MAIN, MOVE }
 
 /** Chặn phím OK cho tới khi người dùng nhả hẳn phím (hộp thoại mở ra khi còn đang giữ OK sẽ không bị bấm nhầm). */
 @Composable
@@ -282,111 +330,71 @@ private fun okGuard(): Modifier {
     }
 }
 
-/** Menu khi nhấn giữ một kênh: yêu thích, chọn link, đổi số, di chuyển, gộp, xoá. */
+/** Menu khi nhấn giữ một kênh: yêu thích, chọn link, đổi số, đặt logo, di chuyển, gộp, xoá. */
 @Composable
 private fun ChannelMenu(
     c: Channel,
     number: Int,
     fav: Boolean,
     groups: List<String>,
-    all: List<Channel>,
-    numbers: Map<String, Int>,
     mergedCount: Int,
     onDismiss: () -> Unit,
     onFav: () -> Unit,
     onHide: () -> Unit,
     onMove: (String) -> Unit,
-    onMerge: (Channel) -> Unit,
+    onMergeStart: () -> Unit,
     onUnmerge: () -> Unit,
     onPickLink: () -> Unit,
     onNumber: () -> Unit,
+    onLogo: () -> Unit,
 ) {
     var mode by remember { mutableStateOf(MenuMode.MAIN) }
-    var mergeGroup by remember { mutableStateOf("") }
     val first = remember { FocusRequester() }
     val firstGroup = groups.firstOrNull { it != c.group }
     var started by remember { mutableStateOf(false) }
-    LaunchedEffect(mode, mergeGroup) { if (started) runCatching { first.requestFocus() }; started = true }
-
-    val others = remember(c.id, all) { all.filter { it.id != c.id }.sortedBy { numbers[it.id] ?: Int.MAX_VALUE } }
-    val myToks = remember(c.id) { dedupeKey(c.name).split(' ').filter { it.isNotEmpty() }.toSet() }
-    // Gợi ý kênh có tên giống (cùng từ khoá) để gộp nhanh
-    val suggest = remember(c.id, others) {
-        others.map { o -> o to dedupeKey(o.name).split(' ').count { t -> t in myToks } }
-            .filter { it.second > 0 }
-            .sortedByDescending { it.second }
-            .take(6).map { it.first }
-    }
-    val groupCounts = remember(others) { others.groupingBy { it.group }.eachCount() }
-
-    fun back() {
-        when (mode) {
-            MenuMode.MERGE_LIST -> mode = MenuMode.MERGE
-            MenuMode.MAIN -> onDismiss()
-            else -> mode = MenuMode.MAIN
-        }
-    }
+    LaunchedEffect(mode) { if (started) runCatching { first.requestFocus() }; started = true }
 
     AlertDialog(
         modifier = okGuard(),
-        onDismissRequest = { back() },
+        onDismissRequest = { if (mode == MenuMode.MAIN) onDismiss() else mode = MenuMode.MAIN },
         containerColor = Color(0xFF151C2E),
         title = {
-            Text(
-                when (mode) {
-                    MenuMode.MAIN -> "$number   ${c.name}"
-                    MenuMode.MOVE -> "Chuyển \"${c.name}\" sang nhóm:"
-                    MenuMode.MERGE -> "Gộp \"${c.name}\" vào kênh:"
-                    MenuMode.MERGE_LIST -> "Gộp vào kênh trong nhóm $mergeGroup:"
-                },
-                color = White, maxLines = 2,
-            )
+            Text(if (mode == MenuMode.MAIN) "$number   ${c.name}" else "Chuyển \"${c.name}\" sang nhóm:", color = White, maxLines = 2)
         },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                when (mode) {
-                    MenuMode.MAIN -> {
-                        Pill(if (fav) "☆ Bỏ yêu thích" else "★ Thêm vào yêu thích", false, modifier = Modifier.focusRequester(first), onClick = onFav)
-                        Pill("Chọn link phát…", false, onClick = onPickLink)
-                        Pill("Đổi số kênh…", false, onClick = onNumber)
-                        Pill("Di chuyển kênh…", false) { mode = MenuMode.MOVE }
-                        Pill("Gộp vào kênh khác…", false) { mode = MenuMode.MERGE }
-                        if (mergedCount > 0) Pill("Tách $mergedCount kênh đã gộp vào kênh này", false, onClick = onUnmerge)
-                        Pill("Xoá kênh", false, textColor = Color(0xFFFF8A8A), onClick = onHide)
-                    }
-                    MenuMode.MOVE -> groups.forEach { g ->
+                if (mode == MenuMode.MAIN) {
+                    Pill(if (fav) "☆ Bỏ yêu thích" else "★ Thêm vào yêu thích", false, modifier = Modifier.focusRequester(first), onClick = onFav)
+                    Pill("Chọn link phát…", false, onClick = onPickLink)
+                    Pill("Đổi số kênh…", false, onClick = onNumber)
+                    Pill("Đặt logo…", false, onClick = onLogo)
+                    Pill("Di chuyển kênh…", false) { mode = MenuMode.MOVE }
+                    Pill("Gộp vào kênh khác…", false, onClick = onMergeStart)
+                    if (mergedCount > 0) Pill("Tách $mergedCount kênh đã gộp vào kênh này", false, onClick = onUnmerge)
+                    Pill("Xoá kênh", false, textColor = Color(0xFFFF8A8A), onClick = onHide)
+                } else {
+                    groups.forEach { g ->
                         Pill(
                             if (g == c.group) "$g (hiện tại)" else g, g == c.group, enabled = g != c.group,
                             modifier = if (g == firstGroup) Modifier.focusRequester(first) else Modifier,
                         ) { onMove(g) }
                     }
-                    MenuMode.MERGE -> {
-                        if (suggest.isNotEmpty()) Text("Gợi ý (tên giống):", color = Muted, fontSize = 13.sp)
-                        suggest.forEachIndexed { i, o ->
-                            Pill(
-                                "${numbers[o.id] ?: ""}  ${o.name} · ${o.group}", false, small = true,
-                                modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                            ) { onMerge(o) }
-                        }
-                        Text("Hoặc chọn trong nhóm:", color = Muted, fontSize = 13.sp)
-                        groups.filter { (groupCounts[it] ?: 0) > 0 }.forEachIndexed { i, g ->
-                            Pill(
-                                "$g (${groupCounts[g]})", false, small = true,
-                                modifier = if (suggest.isEmpty() && i == 0) Modifier.focusRequester(first) else Modifier,
-                            ) { mergeGroup = g; mode = MenuMode.MERGE_LIST }
-                        }
-                    }
-                    MenuMode.MERGE_LIST -> others.filter { it.group == mergeGroup }.forEachIndexed { i, o ->
-                        Pill(
-                            "${numbers[o.id] ?: ""}  ${o.name}", false, small = true,
-                            modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                        ) { onMerge(o) }
-                    }
                 }
             }
         },
-        confirmButton = { Pill(if (mode == MenuMode.MAIN) "Đóng" else "Quay lại", false) { back() } },
+        confirmButton = { Pill(if (mode == MenuMode.MAIN) "Đóng" else "Quay lại", false) { if (mode == MenuMode.MAIN) onDismiss() else mode = MenuMode.MAIN } },
     )
+}
+
+/** Nhãn độ phân giải theo chiều cao video. */
+private fun resLabel(h: Int): String = when {
+    h >= 2160 -> "4K"
+    h >= 1440 -> "1440p"
+    h >= 1080 -> "1080p FHD"
+    h >= 720 -> "720p HD"
+    h >= 480 -> "${h}p SD"
+    h > 0 -> "${h}p"
+    else -> "chưa rõ ĐPG"
 }
 
 /** Nhãn ngắn của link: tên miền + đuôi đường dẫn. */
@@ -406,6 +414,7 @@ internal fun LinkPickerDialog(
     ok: Set<String>,
     dead: Set<String>,
     scoreOf: (String) -> Int,
+    heightOf: (String) -> Int,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -425,7 +434,7 @@ internal fun LinkPickerDialog(
                         else -> "chưa đo"
                     }
                     Pill(
-                        "${i + 1}. ${linkLabel(u)} · $st" + if (u == current) " · ★ mặc định" else "",
+                        "${i + 1}. ${linkLabel(u)} · ${resLabel(heightOf(u))} · $st" + if (u == current) " · ★ mặc định" else "",
                         u == current, small = true,
                         modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
                     ) { onPick(u) }
@@ -434,6 +443,48 @@ internal fun LinkPickerDialog(
         },
         confirmButton = { Pill("Đóng", false, onClick = onDismiss) },
     )
+}
+
+/** Đặt logo riêng cho kênh bằng link ảnh (png/jpg/webp). */
+@Composable
+private fun LogoDialog(name: String, current: String, onDismiss: () -> Unit, onSave: (String) -> Unit, onClear: () -> Unit) {
+    val init = current.ifBlank { "https://" }
+    var url by remember { mutableStateOf(TextFieldValue(init, TextRange(init.length))) }
+    val saveFocus = remember { FocusRequester() }
+    val u = url.text.trim()
+    val bare = u.equals("https://", true) || u.equals("http://", true) || u.isEmpty()
+    val valid = !bare && (u.startsWith("http://", true) || u.startsWith("https://", true))
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val view = LocalView.current
+        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        val leave = {
+            hideKeyboard(view)
+            runCatching { saveFocus.requestFocus() }
+            Unit
+        }
+        Column(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF151C2E))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Đặt logo: $name", color = White, fontSize = 20.sp, maxLines = 2)
+            TextField(
+                url, { url = it }, singleLine = true, label = { Text("Link ảnh logo (http… hoặc https…)") },
+                colors = tfColors(), modifier = Modifier.fillMaxWidth().leaveOnDpad(leave),
+                keyboardOptions = nextOptions, keyboardActions = nextActions(leave),
+            )
+            if (!bare && !valid) Text("Link phải bắt đầu bằng http:// hoặc https://", fontSize = 13.sp, color = Color(0xFFFF9A9A))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Lưu", false, enabled = valid, small = true, modifier = Modifier.focusRequester(saveFocus)) { onSave(u) }
+                if (current.isNotBlank()) Pill("Xoá logo riêng", false, small = true, onClick = onClear)
+                Pill("Hủy", false, small = true, onClick = onDismiss)
+            }
+        }
+    }
 }
 
 /** Đổi số kênh: nhập số mới (hoặc dùng các nút −10/−1/+1/+10). Các kênh khác tự dời chỗ. */
@@ -547,13 +598,16 @@ private fun LogoBox(c: Channel) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+private fun ChannelCard(
+    c: Channel, number: Int, fav: Boolean, onClick: () -> Unit, onLong: () -> Unit,
+    modifier: Modifier = Modifier, marked: Boolean = false,
+) {
     var focused by remember { mutableStateOf(false) }
     var longFired by remember { mutableStateOf(false) }   // lần giữ OK hiện tại đã mở menu rồi
     val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "scale")
     val shape = RoundedCornerShape(12.dp)
     Column(
-        Modifier
+        modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { ev ->
@@ -567,7 +621,7 @@ private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Un
                     else -> false
                 }
             }
-            .border(3.dp, if (focused) White else Color.Transparent, shape)
+            .border(3.dp, if (focused) White else if (marked) Color(0xFFFFC857) else Color.Transparent, shape)
             .clip(shape)
             .background(CardBg)
             .combinedClickable(onClick = onClick, onLongClick = onLong)   // cảm ứng / chuột: nhấn giữ

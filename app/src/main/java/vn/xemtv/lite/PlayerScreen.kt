@@ -48,6 +48,9 @@ fun PlayerScreen(
     dead: Set<String>,
     scoreOf: (String) -> Int,
     onPickLink: (Channel, String) -> Unit,
+    heightOf: (String) -> Int,
+    onHeight: (String, Int) -> Unit,
+    onCurrent: (Channel) -> Unit,
     onResult: (Channel, Boolean, String?) -> Unit,
     onExit: () -> Unit,
 ) {
@@ -189,7 +192,10 @@ fun PlayerScreen(
         when {
             !hasVideo -> tryNext("Chỉ có âm thanh, không có hình")
             !hasAudio -> tryNext("Không có tiếng")
-            url != null -> onResult(ch, true, url)
+            url != null -> {
+                onResult(ch, true, url)
+                onHeight(url, player.videoSize.height)      // độ phân giải thực tế của link đang phát
+            }
         }
     }
 
@@ -298,7 +304,7 @@ fun PlayerScreen(
             LinkPickerDialog(
                 name = cur.name, urls = cur.urls,
                 current = forcedLink?.takeIf { it.first == cur.id }?.second ?: preferred[cur.id],
-                ok = ok, dead = dead, scoreOf = scoreOf,
+                ok = ok, dead = dead, scoreOf = scoreOf, heightOf = heightOf,
                 onPick = { u ->
                     onPickLink(cur, u)
                     forcedLink = cur.id to u
@@ -310,6 +316,7 @@ fun PlayerScreen(
             )
         }
         LaunchedEffect(showLinks) { if (!showLinks) runCatching { focus.requestFocus() } }
+        LaunchedEffect(index, list) { onCurrent(list[index]) }      // để màn hình chính biết kênh đang xem khi thoát
         if (failed) {
             Column(
                 Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(horizontal = 40.dp, vertical = 28.dp),

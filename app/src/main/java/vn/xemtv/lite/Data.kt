@@ -302,13 +302,13 @@ private fun parseM3u(text: String): List<Entry> {
  * fails: số lần lỗi liên tiếp; từ [DEAD_AFTER] lần trở lên thì coi là chết (1 lần lỗi lẻ không bị loại oan).
  */
 class Health(private val prefs: android.content.SharedPreferences, private val key: String) {
-    private class Stat(val score: Int, val fails: Int)
+    private class Stat(val score: Int, val fails: Int, val height: Int = 0)
     private val m = java.util.concurrent.ConcurrentHashMap<String, Stat>()
 
     init {
         try {
             val o = JSONObject(prefs.getString(key, "{}") ?: "{}")
-            o.keys().forEach { k -> val a = o.getJSONArray(k); m[k] = Stat(a.getInt(0), a.getInt(1)) }
+            o.keys().forEach { k -> val a = o.getJSONArray(k); m[k] = Stat(a.getInt(0), a.getInt(1), if (a.length() > 2) a.getInt(2) else 0) }
         } catch (_: Exception) {}
     }
 
@@ -317,25 +317,38 @@ class Health(private val prefs: android.content.SharedPreferences, private val k
     fun score(url: String): Int = m[url]?.score ?: 0
 
     /** Đo được [s] điểm: làm mượt với điểm cũ để một lần đo nhiễu không đảo thứ tự. */
-    fun succeed(url: String, s: Int) {
-        val old = m[url]?.score ?: 0
-        m[url] = Stat(if (old > 0) (old + s) / 2 else s, 0)
+    fun succeed(url: String, s: Int, height: Int = 0) {
+        val o = m[url]
+        val old = o?.score ?: 0
+        m[url] = Stat(if (old > 0) (old + s) / 2 else s, 0, maxOf(o?.height ?: 0, height))
+    }
+
+    /** Độ phân giải (chiều cao) đã biết của link; 0 = chưa biết. */
+    fun height(url: String): Int = m[url]?.height ?: 0
+
+    /** Ghi nhận độ phân giải (giữ giá trị lớn nhất). Trả true nếu có thay đổi. */
+    fun setHeight(url: String, h: Int): Boolean {
+        if (h <= 0) return false
+        val o = m[url] ?: Stat(0, 0)
+        if (h <= o.height) return false
+        m[url] = Stat(o.score, o.fails, h)
+        return true
     }
     /** Đang phát được thật: xóa lỗi, giữ điểm cũ. */
-    fun confirm(url: String) { m[url] = Stat(maxOf(m[url]?.score ?: 0, 1), 0) }
+    fun confirm(url: String) { val o = m[url]; m[url] = Stat(maxOf(o?.score ?: 0, 1), 0, o?.height ?: 0) }
     /** Lỗi khi đang xem: chỉ trừ điểm để link đó xuống cuối hàng, KHÔNG đánh dấu chết (kênh không biến mất). */
     fun penalize(url: String) {
         val o = m[url] ?: return
-        if (o.score > 0) m[url] = Stat(maxOf(1, o.score / 2), o.fails)
+        if (o.score > 0) m[url] = Stat(maxOf(1, o.score / 2), o.fails, o.height)
     }
     /** Lỗi 1 lần (khi đang xem hoặc đo nhanh). */
-    fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1) }
+    fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1, o?.height ?: 0) }
     /** Đã đo lại chắc chắn là chết. */
-    fun kill(url: String) { m[url] = Stat(0, DEAD_AFTER) }
+    fun kill(url: String) { m[url] = Stat(0, DEAD_AFTER, m[url]?.height ?: 0) }
 
     fun save() {
         val o = JSONObject()
-        m.forEach { (k, v) -> o.put(k, JSONArray(listOf(v.score, v.fails))) }
+        m.forEach { (k, v) -> o.put(k, JSONArray(listOf(v.score, v.fails, v.height))) }
         prefs.edit().putString(key, o.toString()).apply()
     }
 }
@@ -433,6 +446,56 @@ class Repo(context: Context) {
         val o = JSONObject()
         m.forEach { (k, v) -> o.put(k, v) }
         prefs.edit().putString(key, o.toString()).apply()
+    }
+
+    /** Logo do người dùng tự đặt: id kênh -> link ảnh. */
+    var customLogos: Map<String, String>
+        get() = readMap("logos")
+        set(v) = writeMap("logos", v)
+
+    private fun logoIndexFile() = File(dir, "logo_index.json")
+    private val logoExt = Regex(".*\\.(png|jpg|jpeg|webp)$", RegexOption.IGNORE_CASE)
+
+    /** Chỉ mục logo tự tìm trên GitHub (kho tv-logos): khoá chuẩn hoá của tên kênh -> link logo. */
+    fun logoIndex(): Map<String, String> = try {
+        val f = logoIndexFile()
+        if (!f.exists()) emptyMap() else {
+            val o = JSONObject(f.readText()).optJSONObject("m") ?: JSONObject()
+            val r = HashMap<String, String>()
+            o.keys().forEach { k -> r[k] = o.getString(k) }
+            r
+        }
+    } catch (e: Exception) { emptyMap() }
+
+    /**
+     * Tải chỉ mục logo kênh Việt Nam từ GitHub (không bắt buộc; tối đa 1 lần/7 ngày; lỗi thì bỏ qua).
+     * Trả true nếu có dữ liệu mới.
+     */
+    suspend fun refreshLogoIndex(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val f = logoIndexFile()
+            if (f.exists() && System.currentTimeMillis() - f.lastModified() < 7L * 24 * 3600 * 1000) return@withContext false
+            val rb = Request.Builder().url("https://api.github.com/repos/tv-logo/tv-logos/contents/countries/vietnam")
+                .header("Accept", "application/vnd.github+json")
+            if (ghToken.isNotBlank()) rb.header("Authorization", "Bearer $ghToken")
+            val body = client.newCall(rb.build()).execute().use { r ->
+                if (!r.isSuccessful) error("HTTP ${r.code}")
+                r.body?.string().orEmpty()
+            }
+            val arr = JSONArray(body)
+            val m = JSONObject()
+            for (i in 0 until arr.length()) {
+                val e = arr.getJSONObject(i)
+                val name = e.optString("name")
+                val url = e.optString("download_url")
+                if (url.isBlank() || !logoExt.matches(name)) continue
+                val k = dedupeKey(name.substringBeforeLast('.').removeSuffix("-vn").replace('-', ' '))
+                if (k.isNotEmpty() && !m.has(k)) m.put(k, url)
+            }
+            if (m.length() == 0) return@withContext false
+            f.writeText(JSONObject().put("m", m).toString())
+            true
+        } catch (e: Exception) { false }
     }
 
     /** Gộp kênh thủ công: id kênh bị gộp -> id kênh đích (link của kênh bị gộp được nhập vào kênh đích). */
