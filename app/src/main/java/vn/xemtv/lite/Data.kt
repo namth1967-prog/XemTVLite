@@ -22,6 +22,8 @@ val BUILT_IN_URLS = listOf(
     "https://iptv-org.github.io/iptv/languages/vie.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/vn.m3u",
     "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_vietnam.m3u8",
+	"https://www.free-codecs.com/app/iptv-finder/playlist/?cat=sports",
+	"https://www.free-codecs.com/app/iptv-finder/playlist/?c=vn",
 )
 
 const val G_NATIONAL = "VTV"

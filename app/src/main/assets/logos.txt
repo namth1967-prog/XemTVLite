@@ -516,39 +516,6 @@ Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
 Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
 Vĩnh Long 5|https://i.imgur.com/hSdSUqx.png
 Voyo Sport 1 (1080i)|https://static.wikia.nocookie.net/logopedia/images/a/a3/VoyoSport1.svg
-VTV Canal 32|https://i.imgur.com/qjm4B0J.png
-VTV News|https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_VTV_GUJARATI/images/LOGO_HD/image.png
-VTV1|https://r2.epg.io.vn/2026-09-17/1.png
-VTV1|https://r2.epg.io.vn/2026-09-17/1.png
-VTV10|https://i.imgur.com/HCpqatZ.png
-VTV10|https://i.imgur.com/HCpqatZ.png
-VTV2|https://i.imgur.com/BVwi3K3.png
-VTV2|https://i.imgur.com/BVwi3K3.png
-VTV2|https://i.imgur.com/BVwi3K3.png
-VTV3|https://i.imgur.com/7rLCvgS.png
-VTV3|https://i.imgur.com/7rLCvgS.png
-VTV4|https://i.imgur.com/9zVTtsA.png
-VTV4|https://i.imgur.com/9zVTtsA.png
-VTV4|https://i.imgur.com/9zVTtsA.png
-VTV5 Tây Nam Bộ|https://i.imgur.com/mIUWkDx.png
-VTV5 Tây Nam Bộ|https://i.imgur.com/mIUWkDx.png
-VTV5 Tây Nam Bộ|https://i.imgur.com/mIUWkDx.png
-VTV5 Tây Nguyên|https://s7730.cdn.mytvnet.vn/vimages/d4/46/61/1c/cf/f6/d461c-pvtv5tynguynhd-channel-unkn.png
-VTV5 Tây Nguyên|https://s7730.cdn.mytvnet.vn/vimages/d4/46/61/1c/cf/f6/d461c-pvtv5tynguynhd-channel-unkn.png
-VTV5 Tây Nguyên|https://s7730.cdn.mytvnet.vn/vimages/d4/46/61/1c/cf/f6/d461c-pvtv5tynguynhd-channel-unkn.png
-VTV5|https://s12811.cdn.mytvnet.vn/vimages/b5/5c/cc/c2/22/29/b5cc2-pvtv5hd-channel-unkn.png
-VTV5|https://s12811.cdn.mytvnet.vn/vimages/b5/5c/cc/c2/22/29/b5cc2-pvtv5hd-channel-unkn.png
-VTV6|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/VTV6.png
-VTV6|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/VTV6.png
-VTV6|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/VTV6.png
-VTV6|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/VTV6.png
-VTV7|https://i.imgur.com/AgamSNe.png
-VTV7|https://i.imgur.com/AgamSNe.png
-VTV7|https://i.imgur.com/AgamSNe.png
-VTV8|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/vtv8.jpg
-VTV8|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/vtv8.jpg
-VTV9|https://i.imgur.com/Ex1VkGQ.png
-VTV9|https://i.imgur.com/Ex1VkGQ.png
 
 VTV10|https://i.postimg.cc/4nY8BrVK/V10.png
 VTV1|https://i.postimg.cc/F1FvzstX/V1.png
