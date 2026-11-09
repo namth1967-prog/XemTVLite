@@ -4,7 +4,8 @@ import android.app.Activity
 import android.view.View
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
@@ -34,14 +35,19 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlayerScreen(
     channels: List<Channel>,
     startIndex: Int,
     allChannels: List<Channel>,
     numbers: Map<String, Int>,
-    rank: suspend (List<String>) -> List<String>,
+    rank: suspend (List<String>, String?) -> List<String>,
+    preferred: Map<String, String>,
+    ok: Set<String>,
+    dead: Set<String>,
+    scoreOf: (String) -> Int,
+    onPickLink: (Channel, String) -> Unit,
     onResult: (Channel, Boolean, String?) -> Unit,
     onExit: () -> Unit,
 ) {
@@ -63,6 +69,9 @@ fun PlayerScreen(
     var advanceReason by remember { mutableStateOf("") }
     var advanceBusy by remember { mutableStateOf(false) }
     var rampTick by remember { mutableIntStateOf(0) }    // mỗi lần bắt đầu có hình: tăng âm lượng dần
+    var showLinks by remember { mutableStateOf(false) }   // hộp chọn link phát
+    var forcedLink by remember { mutableStateOf<Pair<String, String>?>(null) }   // (id kênh, link) người dùng vừa chọn
+    var longShown by remember { mutableStateOf(false) }   // lần giữ OK hiện tại đã mở hộp chọn link
     val focus = remember { FocusRequester() }
 
     val player = remember {
@@ -193,7 +202,7 @@ fun PlayerScreen(
         infoTick++
         runCatching { player.stop() }
         val order = try {
-            rank(ch.urls)
+            rank(ch.urls, forcedLink?.takeIf { it.first == ch.id }?.second ?: preferred[ch.id])
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -247,7 +256,15 @@ fun PlayerScreen(
             .background(Color.Black)
             .focusRequester(focus)
             .onPreviewKeyEvent { e ->
+                val isOk = e.key == Key.Enter || e.key == Key.NumPadEnter || e.key == Key.DirectionCenter
+                // Nhấn và GIỮ OK: mở hộp chọn link phát của kênh đang xem
+                if (isOk && e.type == KeyEventType.KeyUp && longShown) { longShown = false; return@onPreviewKeyEvent true }
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (isOk && e.nativeKeyEvent.repeatCount >= 1) {
+                    if (!longShown) { longShown = true; showLinks = true }
+                    return@onPreviewKeyEvent true
+                }
+                if (isOk) longShown = false
                 when (e.key) {
                     Key.DirectionUp, Key.ChannelUp, Key.PageUp -> { go(1); true }
                     Key.DirectionDown, Key.ChannelDown, Key.PageDown -> { go(-1); true }
@@ -256,7 +273,10 @@ fun PlayerScreen(
                     else -> false
                 }
             }
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() }, indication = null,
+                onLongClick = { showLinks = true },
+            ) {
                 showInfo = !showInfo
                 infoTick++
             }
@@ -273,6 +293,23 @@ fun PlayerScreen(
                 }
             },
         )
+        if (showLinks) {
+            val cur = list[index]
+            LinkPickerDialog(
+                name = cur.name, urls = cur.urls,
+                current = forcedLink?.takeIf { it.first == cur.id }?.second ?: preferred[cur.id],
+                ok = ok, dead = dead, scoreOf = scoreOf,
+                onPick = { u ->
+                    onPickLink(cur, u)
+                    forcedLink = cur.id to u
+                    showLinks = false
+                    retryCh = ""
+                    reloadTick++                       // đo lại và phát ngay link vừa chọn
+                },
+                onDismiss = { showLinks = false },
+            )
+        }
+        LaunchedEffect(showLinks) { if (!showLinks) runCatching { focus.requestFocus() } }
         if (failed) {
             Column(
                 Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(horizontal = 40.dp, vertical = 28.dp),

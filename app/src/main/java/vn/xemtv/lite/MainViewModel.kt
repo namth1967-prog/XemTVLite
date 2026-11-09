@@ -39,6 +39,9 @@ data class UiState(
     val tokenMsg: String? = null,
     val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
     val leveler: Boolean = true,     // cân bằng âm lượng giữa các kênh
+    val merges: Map<String, String> = emptyMap(),         // gộp thủ công: id kênh bị gộp -> id kênh đích
+    val customNumbers: Map<String, Int> = emptyMap(),     // số kênh người dùng tự đặt
+    val preferred: Map<String, String> = emptyMap(),      // link mặc định của từng kênh
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
     val notice: String? = null,                    // thông báo ngắn (VD: kết quả bấm Tải lại)
@@ -49,12 +52,35 @@ data class UiState(
      * Kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được, bỏ kênh đã xoá, áp dụng nhóm đã di chuyển.
      * Nhóm do bạn tự thêm thì hiện NGAY khi nạp xong (không chờ kiểm tra), chỉ ẩn khi mọi link đều đã kiểm tra là chết.
      */
-    val alive: List<Channel> = all
-        .filter { c ->
-            c.id !in hidden &&
-                (c.urls.any { it in ok } || (c.group in userGroups && c.urls.any { it !in dead }))
+    val alive: List<Channel> = run {
+        val byId = all.associateBy { it.id }
+        // Gộp thủ công: kênh bị gộp biến mất, mọi link của nó được nhập vào kênh đích
+        fun root(id: String): String {
+            var cur = id
+            var n = 0
+            while (n++ < 8) {
+                val nx = merges[cur] ?: return cur
+                if (byId.containsKey(nx) && nx !in hidden) cur = nx else return cur
+            }
+            return cur
         }
-        .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
+        val extra = HashMap<String, MutableList<String>>()
+        val absorbed = HashSet<String>()
+        for (src in merges.keys) {
+            val s = byId[src] ?: continue
+            val r = root(src)
+            if (r != src) { absorbed += src; extra.getOrPut(r) { mutableListOf() }.addAll(s.urls) }
+        }
+        all.asSequence()
+            .filter { it.id !in absorbed }
+            .map { c -> extra[c.id]?.let { ex -> c.copy(urls = (c.urls + ex).distinct()) } ?: c }
+            .filter { c ->
+                c.id !in hidden &&
+                    (c.urls.any { it in ok } || (c.group in userGroups && c.urls.any { it !in dead }))
+            }
+            .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
+            .toList()
+    }
 }
 
 /** NEW: chỉ kênh chưa có kết quả. DEAD: thêm các kênh đang chết. ALL: kiểm tra lại tất cả. */
@@ -74,6 +100,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ok = repo.health.ok(), dead = repo.health.dead(),
             ghToken = repo.ghToken, foundCount = repo.found.size, autoFill = repo.autoFill,
             hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler,
+            merges = repo.merges, customNumbers = repo.customNumbers, preferred = repo.preferred,
         )
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -204,7 +231,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun restoreChannels() {
         repo.hidden = emptySet()
         repo.moved = emptyMap()
-        _ui.update { it.copy(hidden = emptySet(), moved = emptyMap()) }
+        repo.merges = emptyMap()
+        repo.customNumbers = emptyMap()
+        _ui.update { it.copy(hidden = emptySet(), moved = emptyMap(), merges = emptyMap(), customNumbers = emptyMap()) }
     }
 
     fun toggleLeveler() {
@@ -223,7 +252,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * Thứ tự thử: link đo lại ngay lúc mở và còn tốt (điểm cao trước) -> link chưa đo kịp / chưa biết
      * -> link vừa lỗi -> link đã biết là chết. Link đầu tiên là link tốt nhất, các link sau là dự phòng theo chất lượng.
      */
-    suspend fun rank(urls: List<String>): List<String> {
+    suspend fun rank(urls: List<String>, preferred: String? = null): List<String> {
         val h = repo.health
         val ok = h.ok()
         val dead = h.dead()
@@ -231,7 +260,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val unknown = urls.filter { it !in ok && it !in dead }
         val deadU = urls.filter { it in dead }
         val all = okU + unknown
-        val pool = all.take(6)
+        // Link mặc định (người dùng chọn / đang dùng lần trước) luôn được đo và thử ĐẦU TIÊN, trừ khi vừa đo thấy hỏng
+        val pref = preferred?.takeIf { it in urls }
+        val pool = (listOfNotNull(pref) + all.filter { it != pref }).take(6)
         val res = prober.measure(pool)
         for ((u, sc) in res) { if (sc > 0) h.succeed(u, sc) else h.penalize(u) }
         h.save()
@@ -239,8 +270,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val live = pool.filter { (res[it] ?: -1) > 0 }.sortedByDescending { h.score(it) }
         val unsure = pool.filter { res[it] == null }
         val failed = pool.filter { res[it]?.let { v -> v <= 0 } == true }
-        return live + unsure + all.drop(6) + failed + deadU
+        val body = live + unsure + all.filter { it !in pool } + failed + deadU
+        val front = pref?.takeIf { p -> res[p]?.let { it <= 0 } != true }
+        return (if (front != null) listOf(front) + body else body).distinct()
     }
+
+    fun linkScore(url: String): Int = repo.health.score(url)
 
     /** Kết quả khi đang xem: phát được thật -> xóa lỗi; lỗi 1 lần chưa loại, lỗi liên tiếp 2 lần mới coi là chết. */
     fun report(c: Channel, ok: Boolean, url: String?) {
@@ -248,6 +283,70 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (ok) repo.health.confirm(url) else repo.health.penalize(url)   // kênh không biến mất; chỉ link đó xuống cuối hàng
         repo.health.save()
         refreshHealth()
+        // Link đang phát được trở thành mặc định cho lần sau
+        if (ok && repo.preferred[c.id] != url) {
+            val m = LinkedHashMap(repo.preferred)
+            m[c.id] = url
+            repo.preferred = m
+            _ui.update { it.copy(preferred = m) }
+        }
+    }
+
+    /** Người dùng tự chọn link cho kênh: trở thành link mặc định cho lần sau. */
+    fun setPreferred(c: Channel, url: String) {
+        val m = LinkedHashMap(repo.preferred)
+        m[c.id] = url
+        repo.preferred = m
+        _ui.update { it.copy(preferred = m) }
+        showNotice("Đã đặt link ${c.urls.indexOf(url) + 1}/${c.urls.size} làm mặc định cho \"${c.name}\".")
+    }
+
+    // ----- Gộp kênh thủ công / đổi số kênh -----
+    private fun rootOf(m: Map<String, String>, id: String): String {
+        var cur = id
+        var n = 0
+        while (n++ < 10) cur = m[cur] ?: return cur
+        return cur
+    }
+
+    fun mergeChannel(c: Channel, target: Channel) {
+        if (c.id == target.id) return
+        val m = LinkedHashMap(repo.merges)
+        var r = rootOf(m, target.id)
+        if (r == c.id) {                                   // đích đang bị gộp vào chính kênh này: bỏ các liên kết trỏ về nó
+            m.entries.removeAll { it.value == c.id }
+            r = rootOf(m, target.id)
+        }
+        m[c.id] = r
+        repo.merges = m
+        if (c.id in repo.favorites && target.id !in repo.favorites) repo.favorites = repo.favorites + target.id
+        _ui.update { it.copy(merges = m, favorites = repo.favorites) }
+        showNotice("Đã gộp \"${c.name}\" vào \"${target.name}\" (giữ mọi link).")
+    }
+
+    /** Tách tất cả kênh đã gộp vào [target]. */
+    fun unmerge(target: Channel) {
+        val m = LinkedHashMap(repo.merges.filterValues { it != target.id })
+        repo.merges = m
+        _ui.update { it.copy(merges = m) }
+        showNotice("Đã tách các kênh đã gộp vào \"${target.name}\".")
+    }
+
+    fun setNumber(c: Channel, n: Int) {
+        val m = LinkedHashMap(repo.customNumbers)
+        m.remove(c.id)
+        m[c.id] = n.coerceIn(1, 9999)       // đặt sau cùng = được ưu tiên khi trùng số
+        repo.customNumbers = m
+        _ui.update { it.copy(customNumbers = m) }
+        showNotice("Đã đặt số $n cho \"${c.name}\".")
+    }
+
+    fun clearNumber(c: Channel) {
+        val m = LinkedHashMap(repo.customNumbers)
+        m.remove(c.id)
+        repo.customNumbers = m
+        _ui.update { it.copy(customNumbers = m) }
+        showNotice("\"${c.name}\" trở về số mặc định.")
     }
 
     // ----- Kiểm tra kênh (chỉ hiện kênh chắc chắn sống; kết quả lưu mãi) -----

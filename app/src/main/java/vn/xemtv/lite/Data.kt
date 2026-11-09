@@ -233,6 +233,33 @@ fun orderChannels(list: List<Channel>, userGroups: List<String>): List<Channel> 
     return list.sortedBy { rank[it.group] ?: order.size }
 }
 
+/**
+ * Áp dụng SỐ KÊNH do người dùng tự đặt: kênh có số riêng nằm đúng vị trí đó (số vượt quá thì xếp cuối),
+ * các kênh còn lại lần lượt lấp vào chỗ trống theo thứ tự cũ. Hai kênh cùng số: kênh đặt sau được ưu tiên,
+ * kênh còn lại dời sang số trống kế tiếp. [custom] giữ thứ tự thời gian đặt (cũ trước, mới sau).
+ */
+fun applyNumbers(list: List<Channel>, custom: Map<String, Int>): List<Channel> {
+    if (custom.isEmpty() || list.isEmpty()) return list
+    val byId = list.associateBy { it.id }
+    val fixed = custom.entries.withIndex()
+        .mapNotNull { (seq, e) -> byId[e.key]?.let { Triple(it, e.value.coerceAtLeast(1), seq) } }
+        .sortedWith(compareBy({ it.second }, { -it.third }))
+    val total = list.size
+    val slots = arrayOfNulls<Channel>(total)
+    val used = HashSet<String>()
+    for ((c, n, _) in fixed) {
+        var p = minOf(n - 1, total - 1)
+        while (p < total && slots[p] != null) p++
+        if (p >= total) { p = total - 1; while (p >= 0 && slots[p] != null) p-- }
+        if (p < 0) continue
+        slots[p] = c
+        used += c.id
+    }
+    val rest = list.filter { it.id !in used }.iterator()
+    for (i in 0 until total) if (slots[i] == null && rest.hasNext()) slots[i] = rest.next()
+    return slots.filterNotNull()
+}
+
 // Kênh radio / chỉ có âm thanh (VOV, FM, podcast…) -> bỏ hết
 private val RADIO_RE = Regex("(^|[^a-z])(radio|fm|podcast|audio)([^a-z]|$)|^vov(?!\\s*tv)(?![a-z])|tieng noi viet nam|dai tieng noi")
 private val AUDIO_URL_RE = Regex("\\.(mp3|aac|ogg|m4a|opus|wav)(\\?|$)", RegexOption.IGNORE_CASE)
@@ -394,6 +421,38 @@ class Repo(context: Context) {
     var autoFill: Boolean
         get() = prefs.getBoolean("autofill", true)
         set(v) { prefs.edit().putBoolean("autofill", v).apply() }
+
+    private fun readMap(key: String): LinkedHashMap<String, String> = try {
+        val o = JSONObject(prefs.getString(key, "{}") ?: "{}")
+        val m = LinkedHashMap<String, String>()
+        o.keys().forEach { k -> m[k] = o.getString(k) }
+        m
+    } catch (e: Exception) { LinkedHashMap() }
+
+    private fun writeMap(key: String, m: Map<String, String>) {
+        val o = JSONObject()
+        m.forEach { (k, v) -> o.put(k, v) }
+        prefs.edit().putString(key, o.toString()).apply()
+    }
+
+    /** Gộp kênh thủ công: id kênh bị gộp -> id kênh đích (link của kênh bị gộp được nhập vào kênh đích). */
+    var merges: Map<String, String>
+        get() = readMap("merges")
+        set(v) = writeMap("merges", v)
+
+    /** Link mặc định của từng kênh: id kênh -> link (người dùng chọn, hoặc link đang phát được lần gần nhất). */
+    var preferred: Map<String, String>
+        get() = readMap("preferred")
+        set(v) = writeMap("preferred", v)
+
+    /** Số kênh người dùng tự đặt: id -> số (giữ thứ tự thời gian đặt). */
+    var customNumbers: Map<String, Int>
+        get() {
+            val r = LinkedHashMap<String, Int>()
+            readMap("nums").forEach { (k, v) -> v.toIntOrNull()?.let { r[k] = it } }
+            return r
+        }
+        set(v) = writeMap("nums", v.mapValues { it.value.toString() })
 
     /** Cân bằng âm lượng giữa các kênh (bộ tự chỉnh mức tiếng). */
     var leveler: Boolean

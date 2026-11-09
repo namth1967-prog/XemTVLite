@@ -46,8 +46,8 @@ private fun App(vm: MainViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
 
     // Thứ tự và SỐ KÊNH: VTV, VTVcab, SCTV, HTVC, Địa phương, Thể thao, Phim, nhóm của bạn, Khác
-    val ordered = remember(ui.alive, ui.sources) {
-        orderChannels(ui.alive, ui.sources.filter { !it.auto }.map { it.name })
+    val ordered = remember(ui.alive, ui.sources, ui.customNumbers) {
+        applyNumbers(orderChannels(ui.alive, ui.sources.filter { !it.auto }.map { it.name }), ui.customNumbers)
     }
     val numbers = remember(ordered) { ordered.withIndex().associate { it.value.id to it.index + 1 } }
 
@@ -72,7 +72,12 @@ private fun App(vm: MainViewModel = viewModel()) {
             startIndex = playIndex,
             allChannels = ordered,
             numbers = numbers,
-            rank = vm::rank,
+            rank = { urls, pref -> vm.rank(urls, pref) },
+            preferred = ui.preferred,
+            ok = ui.ok,
+            dead = ui.dead,
+            scoreOf = vm::linkScore,
+            onPickLink = vm::setPreferred,
             onResult = vm::report,
             onExit = { playIndex = -1 },
         )
@@ -102,6 +107,12 @@ private fun App(vm: MainViewModel = viewModel()) {
             onToggleLeveler = vm::toggleLeveler,
             onHide = vm::hideChannel,
             onMove = vm::moveChannel,
+            onMerge = vm::mergeChannel,
+            onUnmerge = vm::unmerge,
+            onSetNumber = vm::setNumber,
+            onClearNumber = vm::clearNumber,
+            onPickLink = vm::setPreferred,
+            scoreOf = vm::linkScore,
             onRestore = vm::restoreChannels,
             onToken = vm::setToken,
             onCheckToken = vm::checkToken,

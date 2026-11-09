@@ -51,6 +51,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.launch
@@ -98,8 +99,16 @@ fun HomeScreen(
     onPlay: (Channel) -> Unit,
     onHide: (Channel) -> Unit,
     onMove: (Channel, String) -> Unit,
+    onMerge: (Channel, Channel) -> Unit,
+    onUnmerge: (Channel) -> Unit,
+    onSetNumber: (Channel, Int) -> Unit,
+    onClearNumber: (Channel) -> Unit,
+    onPickLink: (Channel, String) -> Unit,
+    scoreOf: (String) -> Int,
     onRestore: () -> Unit,
 ) {
+    var numberFor by remember { mutableStateOf<Channel?>(null) }   // hộp đổi số kênh
+    var linksFor by remember { mutableStateOf<Channel?>(null) }    // hộp chọn link phát
     var showSettings by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<Channel?>(null) }   // kênh đang mở menu nhấn giữ
     var numBuf by remember { mutableStateOf("") }
@@ -226,33 +235,39 @@ fun HomeScreen(
     menuFor?.let { c ->
         ChannelMenu(
             c = c, number = numbers[c.id] ?: 0, fav = c.id in ui.favorites, groups = order.distinct(),
+            all = ui.alive, numbers = numbers, mergedCount = ui.merges.values.count { it == c.id },
             onDismiss = { menuFor = null },
             onFav = { onFav(c); menuFor = null },
             onHide = { onHide(c); menuFor = null },
             onMove = { g -> onMove(c, g); menuFor = null },
+            onMerge = { t -> onMerge(c, t); menuFor = null },
+            onUnmerge = { onUnmerge(c); menuFor = null },
+            onPickLink = { linksFor = c; menuFor = null },
+            onNumber = { numberFor = c; menuFor = null },
+        )
+    }
+    numberFor?.let { c ->
+        NumberDialog(
+            name = c.name, current = numbers[c.id] ?: 1, total = numbers.size, hasCustom = c.id in ui.customNumbers,
+            onDismiss = { numberFor = null },
+            onSave = { n -> onSetNumber(c, n); numberFor = null },
+            onClear = { onClearNumber(c); numberFor = null },
+        )
+    }
+    linksFor?.let { c ->
+        LinkPickerDialog(
+            name = c.name, urls = c.urls, current = ui.preferred[c.id], ok = ui.ok, dead = ui.dead, scoreOf = scoreOf,
+            onPick = { u -> onPickLink(c, u); linksFor = null },
+            onDismiss = { linksFor = null },
         )
     }
 }
 
-/** Menu khi nhấn giữ một kênh: yêu thích, di chuyển sang nhóm khác, xoá. */
+private enum class MenuMode { MAIN, MOVE, MERGE, MERGE_LIST }
+
+/** Chặn phím OK cho tới khi người dùng nhả hẳn phím (hộp thoại mở ra khi còn đang giữ OK sẽ không bị bấm nhầm). */
 @Composable
-private fun ChannelMenu(
-    c: Channel,
-    number: Int,
-    fav: Boolean,
-    groups: List<String>,
-    onDismiss: () -> Unit,
-    onFav: () -> Unit,
-    onHide: () -> Unit,
-    onMove: (String) -> Unit,
-) {
-    var picking by remember { mutableStateOf(false) }
-    val first = remember { FocusRequester() }
-    val firstGroup = groups.firstOrNull { it != c.group }
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(picking) { if (started) runCatching { first.requestFocus() }; started = true }
-    // Menu mở ra khi người dùng còn đang GIỮ phím OK: bỏ qua mọi phím OK (kể cả phím lặp và lúc nhả)
-    // cho tới khi không còn phím OK nào trong 350 ms, tránh bấm nhầm vào mục đầu rồi tự đóng menu.
+private fun okGuard(): Modifier {
     var armed by remember { mutableStateOf(false) }
     val lastOk = remember { LongArray(1) { System.currentTimeMillis() } }
     LaunchedEffect(Unit) {
@@ -261,34 +276,224 @@ private fun ChannelMenu(
             if (System.currentTimeMillis() - lastOk[0] > 350) armed = true
         }
     }
+    return Modifier.onPreviewKeyEvent { ev ->
+        val ok = ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter
+        if (ok && !armed) { lastOk[0] = System.currentTimeMillis(); true } else false
+    }
+}
+
+/** Menu khi nhấn giữ một kênh: yêu thích, chọn link, đổi số, di chuyển, gộp, xoá. */
+@Composable
+private fun ChannelMenu(
+    c: Channel,
+    number: Int,
+    fav: Boolean,
+    groups: List<String>,
+    all: List<Channel>,
+    numbers: Map<String, Int>,
+    mergedCount: Int,
+    onDismiss: () -> Unit,
+    onFav: () -> Unit,
+    onHide: () -> Unit,
+    onMove: (String) -> Unit,
+    onMerge: (Channel) -> Unit,
+    onUnmerge: () -> Unit,
+    onPickLink: () -> Unit,
+    onNumber: () -> Unit,
+) {
+    var mode by remember { mutableStateOf(MenuMode.MAIN) }
+    var mergeGroup by remember { mutableStateOf("") }
+    val first = remember { FocusRequester() }
+    val firstGroup = groups.firstOrNull { it != c.group }
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(mode, mergeGroup) { if (started) runCatching { first.requestFocus() }; started = true }
+
+    val others = remember(c.id, all) { all.filter { it.id != c.id }.sortedBy { numbers[it.id] ?: Int.MAX_VALUE } }
+    val myToks = remember(c.id) { dedupeKey(c.name).split(' ').filter { it.isNotEmpty() }.toSet() }
+    // Gợi ý kênh có tên giống (cùng từ khoá) để gộp nhanh
+    val suggest = remember(c.id, others) {
+        others.map { o -> o to dedupeKey(o.name).split(' ').count { t -> t in myToks } }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(6).map { it.first }
+    }
+    val groupCounts = remember(others) { others.groupingBy { it.group }.eachCount() }
+
+    fun back() {
+        when (mode) {
+            MenuMode.MERGE_LIST -> mode = MenuMode.MERGE
+            MenuMode.MAIN -> onDismiss()
+            else -> mode = MenuMode.MAIN
+        }
+    }
+
     AlertDialog(
-        modifier = Modifier.onPreviewKeyEvent { ev ->
-            val ok = ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter
-            if (ok && !armed) { lastOk[0] = System.currentTimeMillis(); true } else false
-        },
-        onDismissRequest = { if (picking) picking = false else onDismiss() },
+        modifier = okGuard(),
+        onDismissRequest = { back() },
         containerColor = Color(0xFF151C2E),
         title = {
-            Text(if (picking) "Chuyển \"${c.name}\" sang nhóm:" else "$number   ${c.name}", color = White, maxLines = 2)
+            Text(
+                when (mode) {
+                    MenuMode.MAIN -> "$number   ${c.name}"
+                    MenuMode.MOVE -> "Chuyển \"${c.name}\" sang nhóm:"
+                    MenuMode.MERGE -> "Gộp \"${c.name}\" vào kênh:"
+                    MenuMode.MERGE_LIST -> "Gộp vào kênh trong nhóm $mergeGroup:"
+                },
+                color = White, maxLines = 2,
+            )
         },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!picking) {
-                    Pill(if (fav) "☆ Bỏ yêu thích" else "★ Thêm vào yêu thích", false, modifier = Modifier.focusRequester(first), onClick = onFav)
-                    Pill("Di chuyển kênh…", false) { picking = true }
-                    Pill("Xoá kênh", false, textColor = Color(0xFFFF8A8A), onClick = onHide)
-                } else {
-                    groups.forEach { g ->
+                when (mode) {
+                    MenuMode.MAIN -> {
+                        Pill(if (fav) "☆ Bỏ yêu thích" else "★ Thêm vào yêu thích", false, modifier = Modifier.focusRequester(first), onClick = onFav)
+                        Pill("Chọn link phát…", false, onClick = onPickLink)
+                        Pill("Đổi số kênh…", false, onClick = onNumber)
+                        Pill("Di chuyển kênh…", false) { mode = MenuMode.MOVE }
+                        Pill("Gộp vào kênh khác…", false) { mode = MenuMode.MERGE }
+                        if (mergedCount > 0) Pill("Tách $mergedCount kênh đã gộp vào kênh này", false, onClick = onUnmerge)
+                        Pill("Xoá kênh", false, textColor = Color(0xFFFF8A8A), onClick = onHide)
+                    }
+                    MenuMode.MOVE -> groups.forEach { g ->
                         Pill(
                             if (g == c.group) "$g (hiện tại)" else g, g == c.group, enabled = g != c.group,
                             modifier = if (g == firstGroup) Modifier.focusRequester(first) else Modifier,
                         ) { onMove(g) }
                     }
+                    MenuMode.MERGE -> {
+                        if (suggest.isNotEmpty()) Text("Gợi ý (tên giống):", color = Muted, fontSize = 13.sp)
+                        suggest.forEachIndexed { i, o ->
+                            Pill(
+                                "${numbers[o.id] ?: ""}  ${o.name} · ${o.group}", false, small = true,
+                                modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                            ) { onMerge(o) }
+                        }
+                        Text("Hoặc chọn trong nhóm:", color = Muted, fontSize = 13.sp)
+                        groups.filter { (groupCounts[it] ?: 0) > 0 }.forEachIndexed { i, g ->
+                            Pill(
+                                "$g (${groupCounts[g]})", false, small = true,
+                                modifier = if (suggest.isEmpty() && i == 0) Modifier.focusRequester(first) else Modifier,
+                            ) { mergeGroup = g; mode = MenuMode.MERGE_LIST }
+                        }
+                    }
+                    MenuMode.MERGE_LIST -> others.filter { it.group == mergeGroup }.forEachIndexed { i, o ->
+                        Pill(
+                            "${numbers[o.id] ?: ""}  ${o.name}", false, small = true,
+                            modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                        ) { onMerge(o) }
+                    }
                 }
             }
         },
-        confirmButton = { Pill(if (picking) "Quay lại" else "Đóng", false) { if (picking) picking = false else onDismiss() } },
+        confirmButton = { Pill(if (mode == MenuMode.MAIN) "Đóng" else "Quay lại", false) { back() } },
     )
+}
+
+/** Nhãn ngắn của link: tên miền + đuôi đường dẫn. */
+private fun linkLabel(url: String): String {
+    val rest = url.substringAfter("://")
+    val host = rest.substringBefore('/').take(32)
+    val path = rest.substringAfter('/', "").substringBefore('?')
+    return if (path.isEmpty()) host else "$host/…${path.takeLast(20)}"
+}
+
+/** Chọn link phát của một kênh. Link được chọn (hoặc đang phát được) trở thành mặc định cho lần sau. */
+@Composable
+internal fun LinkPickerDialog(
+    name: String,
+    urls: List<String>,
+    current: String?,
+    ok: Set<String>,
+    dead: Set<String>,
+    scoreOf: (String) -> Int,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    AlertDialog(
+        modifier = okGuard(),
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF151C2E),
+        title = { Text("Chọn link phát: $name", color = White, maxLines = 2) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Link bạn chọn sẽ được thử đầu tiên và là mặc định cho lần sau.", fontSize = 13.sp, color = Muted)
+                urls.forEachIndexed { i, u ->
+                    val st = when {
+                        u in dead -> "chết"
+                        u in ok -> "tốt (${scoreOf(u)})"
+                        else -> "chưa đo"
+                    }
+                    Pill(
+                        "${i + 1}. ${linkLabel(u)} · $st" + if (u == current) " · ★ mặc định" else "",
+                        u == current, small = true,
+                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                    ) { onPick(u) }
+                }
+            }
+        },
+        confirmButton = { Pill("Đóng", false, onClick = onDismiss) },
+    )
+}
+
+/** Đổi số kênh: nhập số mới (hoặc dùng các nút −10/−1/+1/+10). Các kênh khác tự dời chỗ. */
+@Composable
+private fun NumberDialog(
+    name: String,
+    current: Int,
+    total: Int,
+    hasCustom: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (Int) -> Unit,
+    onClear: () -> Unit,
+) {
+    var v by remember { mutableStateOf(TextFieldValue(current.toString(), TextRange(current.toString().length))) }
+    val saveFocus = remember { FocusRequester() }
+    val n = v.text.toIntOrNull()
+    val valid = n != null && n in 1..9999
+    fun bump(d: Int) {
+        val x = ((v.text.toIntOrNull() ?: current) + d).coerceIn(1, maxOf(total, 1))
+        v = TextFieldValue(x.toString(), TextRange(x.toString().length))
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val view = LocalView.current
+        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setGravity(Gravity.TOP) }
+        val leave = {
+            hideKeyboard(view)
+            runCatching { saveFocus.requestFocus() }
+            Unit
+        }
+        Column(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth(0.92f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF151C2E))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Đổi số kênh: $name", color = White, fontSize = 20.sp, maxLines = 2)
+            Text("Số hiện tại: $current (có $total kênh). Các kênh khác tự dời chỗ.", color = Muted, fontSize = 14.sp)
+            TextField(
+                v, { nv -> v = nv.copy(text = nv.text.filter { it.isDigit() }.take(4)) }, singleLine = true,
+                label = { Text("Số kênh mới") }, colors = tfColors(),
+                modifier = Modifier.fillMaxWidth().leaveOnDpad(leave),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = nextActions(leave),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("−10", false, small = true) { bump(-10) }
+                Pill("−1", false, small = true) { bump(-1) }
+                Pill("+1", false, small = true) { bump(1) }
+                Pill("+10", false, small = true) { bump(10) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Lưu", false, enabled = valid, small = true, modifier = Modifier.focusRequester(saveFocus)) { onSave(n ?: current) }
+                if (hasCustom) Pill("Bỏ số riêng", false, small = true, onClick = onClear)
+                Pill("Hủy", false, small = true, onClick = onDismiss)
+            }
+        }
+    }
 }
 
 @Composable
@@ -334,9 +539,9 @@ private fun LogoBox(c: Channel) {
         val words = c.name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
         val initials = if (words.size >= 2) words.take(3).joinToString("") { it.first().uppercase() } else c.name.take(4).uppercase()
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(Color.hsv(hue, 0.45f, 0.55f)),
+            Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)).background(Color.hsv(hue, 0.45f, 0.55f)),
             contentAlignment = Alignment.Center,
-        ) { Text(initials, fontSize = 22.sp, color = White, maxLines = 1) }
+        ) { Text(initials, fontSize = 18.sp, color = White, maxLines = 1) }
     }
 }
 
@@ -366,17 +571,18 @@ private fun ChannelCard(c: Channel, number: Int, fav: Boolean, onClick: () -> Un
             .clip(shape)
             .background(CardBg)
             .combinedClickable(onClick = onClick, onLongClick = onLong)   // cảm ứng / chuột: nhấn giữ
-            .padding(10.dp),
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("$number", Modifier.align(Alignment.Start), fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
-        Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
+        // Số kênh nằm đè góc trên bên trái ô logo (gọn hơn: ô thấp hơn khoảng 1/4)
+        Box(Modifier.fillMaxWidth().height(62.dp), contentAlignment = Alignment.Center) {
             LogoBox(c)
+            Text("$number", Modifier.align(Alignment.TopStart), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             (if (fav) "★ " else "") + c.name,
-            fontSize = 15.sp, color = White, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            fontSize = 14.sp, color = White, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
         )
     }
 }
@@ -442,8 +648,8 @@ private fun SettingsDialog(
                         Pill("Xoá thông tin này", false, small = true) { CrashLog.clear(appCtx); crash = null }
                     }
                 }
-                SettingRow("Đã xoá ${ui.hidden.size} · đã di chuyển ${ui.moved.size} kênh") {
-                    Pill("Khôi phục", false, enabled = ui.hidden.isNotEmpty() || ui.moved.isNotEmpty(), small = true, onClick = onRestore)
+                SettingRow("Xoá ${ui.hidden.size} · di chuyển ${ui.moved.size} · gộp ${ui.merges.size} · đổi số ${ui.customNumbers.size}") {
+                    Pill("Khôi phục", false, enabled = ui.hidden.isNotEmpty() || ui.moved.isNotEmpty() || ui.merges.isNotEmpty() || ui.customNumbers.isNotEmpty(), small = true, onClick = onRestore)
                 }
                 HorizontalDivider(color = divider)
 
