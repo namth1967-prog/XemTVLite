@@ -22,8 +22,6 @@ val BUILT_IN_URLS = listOf(
     "https://iptv-org.github.io/iptv/languages/vie.m3u",
     "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/vn.m3u",
     "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_vietnam.m3u8",
-	"https://www.free-codecs.com/app/iptv-finder/playlist/?cat=sports",
-	"https://www.free-codecs.com/app/iptv-finder/playlist/?c=vn",
 )
 
 const val G_NATIONAL = "VTV"
@@ -92,7 +90,7 @@ private val RX_7 = Regex("^vtv[\\s\\-_.]*can\\s*tho")
 private val RX_8 = Regex("^vtv[\\s\\-_.]*(\\d{1,2})(?!\\d)")
 private val RX_9 = Regex("^sctv[\\s\\-_.]*(\\d{1,2})(?!\\d)")
 private val RX_10 = Regex("(?:ss|us|is)$")
-private val RX_11 = Regex("[^a-z0-9]+")
+private val RX_11 = Regex("[^\\p{L}\\p{N}]+")   // chữ/số của MỌI ngôn ngữ (trước đây chỉ a-z0-9 nên tên không phải Latin bị loại hết)
 private val RX_12 = Regex("^on\\s")
 private val RX_13 = Regex("\\d+")
 private val canonMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
@@ -228,8 +226,14 @@ private fun natKeyRaw(s: String): String =
     fold(s).replace(RX_2, "").replace(RX_13) { it.value.padStart(5, '0') }
 
 /** Sắp theo nhóm (đúng thứ tự đánh số); trong nhóm giữ nguyên thứ tự (VTV1, VTV2, … VTV10). */
-fun orderChannels(list: List<Channel>, userGroups: List<String>): List<Channel> {
-    val order = VN_GROUPS + listOf(G_SPORT, G_MOVIE) + userGroups + G_OTHER
+/** Thứ tự nhóm: thứ tự người dùng tự xếp ([custom]) trước, các nhóm còn lại theo thứ tự mặc định. */
+fun groupOrderList(userGroups: List<String>, custom: List<String> = emptyList()): List<String> {
+    val base = VN_GROUPS + listOf(G_SPORT, G_MOVIE) + userGroups + G_OTHER
+    return (custom.filter { it in base } + base).distinct()
+}
+
+fun orderChannels(list: List<Channel>, userGroups: List<String>, custom: List<String> = emptyList()): List<Channel> {
+    val order = groupOrderList(userGroups, custom)
     val rank = HashMap<String, Int>()
     order.forEachIndexed { i, g -> if (g !in rank) rank[g] = i }
     return list.sortedBy { rank[it.group] ?: order.size }
@@ -275,8 +279,33 @@ private fun isVietnamese(e: Entry) =
 
 private val attrRegex = Regex("""([\w-]+)="([^"]*)"""")
 
+/** Nội dung là danh sách phát của MỘT luồng HLS (master/media playlist), không phải danh sách nhiều kênh. */
+private fun looksLikeStream(text: String) = text.contains("#EXT-X-", ignoreCase = true)
+
+/** Link trỏ thẳng tới một luồng phát (không phải file danh sách). */
+private fun isStreamUrl(url: String): Boolean {
+    val p = url.substringBefore('?').lowercase()
+    return p.endsWith(".m3u8") || p.endsWith(".ts") || p.endsWith(".mp4")
+}
+
+/** Tên tạm cho kênh không ghi tên: lấy từ đuôi đường dẫn hoặc tên máy chủ. */
+private fun deriveName(url: String): String {
+    val last = url.substringBefore('?').trimEnd('/').substringAfterLast('/').substringBeforeLast('.')
+        .replace('_', ' ').replace('-', ' ').trim()
+    return last.ifBlank { url.substringAfter("://").substringBefore('/') }
+}
+
+/** Link GitHub dạng trang (…/blob/…) -> link file thô (raw.githubusercontent.com) để tải được nội dung. */
+private val GITHUB_BLOB = Regex("^https?://(?:www\\.)?github\\.com/([^/]+)/([^/]+)/(?:blob|raw)/(.+)$", RegexOption.IGNORE_CASE)
+fun normalizeSourceUrl(url: String): String {
+    val t = url.trim().substringBefore('#')
+    val m = GITHUB_BLOB.find(t) ?: return t
+    return "https://raw.githubusercontent.com/${m.groupValues[1]}/${m.groupValues[2]}/${m.groupValues[3].substringBefore('?')}"
+}
+
 private fun parseM3u(text: String): List<Entry> {
     val out = ArrayList<Entry>()
+    val streamLike = looksLikeStream(text)       // nếu là luồng HLS thì các dòng http bên trong KHÔNG phải kênh
     var name: String? = null
     var logo = ""
     var group = ""
@@ -290,8 +319,11 @@ private fun parseM3u(text: String): List<Entry> {
             logo = attrs["tvg-logo"].orEmpty()
             group = attrs["group-title"].orEmpty()
             tvg = attrs["tvg-id"].orEmpty()
-        } else if (!line.startsWith("#") && name != null) {
-            if (name.isNotBlank() && line.startsWith("http", ignoreCase = true)) out += Entry(name, logo, line, group, tvg)
+        } else if (!line.startsWith("#")) {
+            if (line.startsWith("http", ignoreCase = true)) {
+                if (name != null) out += Entry(name.ifBlank { deriveName(line) }, logo, line, group, tvg)
+                else if (!streamLike) out += Entry(deriveName(line), "", line)          // danh sách chỉ có URL trơn
+            }
             name = null
         }
     }
@@ -450,6 +482,29 @@ class Repo(context: Context) {
         prefs.edit().putString(key, o.toString()).apply()
     }
 
+    /** Link người dùng đã xoá khỏi kênh (không hiện lại khi nạp danh sách). */
+    var deletedLinks: Set<String>
+        get() = prefs.getStringSet("dellinks", emptySet()) ?: emptySet()
+        set(v) { prefs.edit().putStringSet("dellinks", HashSet(v)).apply() }
+
+    /** Tên hiển thị do người dùng đổi cho nút nhóm: tên gốc -> tên mới. */
+    var groupLabels: Map<String, String>
+        get() = readMap("glabels")
+        set(v) = writeMap("glabels", v)
+
+    /** Thứ tự nút nhóm do người dùng tự xếp. */
+    var groupOrder: List<String>
+        get() = try {
+            val a = JSONArray(prefs.getString("gorder", "[]") ?: "[]")
+            (0 until a.length()).map { a.getString(it) }
+        } catch (e: Exception) { emptyList() }
+        set(v) { prefs.edit().putString("gorder", JSONArray(v).toString()).apply() }
+
+    /** Nhóm dựng sẵn mà người dùng đã xoá nút (kênh của nhóm chuyển sang "Khác"). */
+    var deletedGroups: Set<String>
+        get() = prefs.getStringSet("gdeleted", emptySet()) ?: emptySet()
+        set(v) { prefs.edit().putStringSet("gdeleted", HashSet(v)).apply() }
+
     /** Logo do người dùng tự đặt: id kênh -> link ảnh. */
     var customLogos: Map<String, String>
         get() = readMap("logos")
@@ -498,6 +553,28 @@ class Repo(context: Context) {
             f.writeText(JSONObject().put("m", m).toString())
             true
         } catch (e: Exception) { false }
+    }
+
+    // ----- Kết quả nạp từng nguồn (để báo lý do khi một link không ra kênh nào) -----
+    private val sourceStatus = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** "OK:<số kênh>" hoặc lý do lỗi bằng tiếng Việt; null nếu chưa nạp. */
+    fun statusOf(url: String): String? = sourceStatus[url]
+    fun statusSnapshot(): Map<String, String> = HashMap(sourceStatus)
+
+    private fun friendlyError(e: Exception): String {
+        val m = e.message.orEmpty()
+        return when {
+            m == "trống" -> "file không có kênh nào đọc được"
+            m == "trang web" -> "link trả về trang web, không phải file M3U"
+            m.startsWith("HTTP 404") || m.startsWith("HTTP 410") -> "link không tồn tại (${m.removePrefix("HTTP ")})"
+            m.startsWith("HTTP 401") || m.startsWith("HTTP 403") -> "bị từ chối truy cập (${m.removePrefix("HTTP ")})"
+            m.startsWith("HTTP") -> "máy chủ báo lỗi (${m.removePrefix("HTTP ")})"
+            e is java.net.UnknownHostException -> "không tìm thấy máy chủ (sai địa chỉ hoặc mất mạng)"
+            e is java.net.SocketTimeoutException -> "máy chủ phản hồi quá chậm"
+            e is IllegalArgumentException -> "địa chỉ link không hợp lệ"
+            else -> m.ifBlank { e.javaClass.simpleName }.take(80)
+        }
     }
 
     /** Gộp kênh thủ công: id kênh bị gộp -> id kênh đích (link của kênh bị gộp được nhập vào kênh đích). */
@@ -667,10 +744,10 @@ class Repo(context: Context) {
         val wantedGroup = wantedGroups()
         for ((s, entries) in parts) for (e in entries) {
             if (isRadio(e.name, e.group, e.url)) continue
-            val key = channelKey(e.name)
-            val dk = dedupeKey(e.name)
-            if (key.isEmpty() || dk.isEmpty()) continue
-            val display = canonicalName(e.name)
+            if (e.name.isBlank()) continue
+            val key = channelKey(e.name).ifEmpty { "u" + e.name.trim().lowercase().hashCode() }   // tên toàn ký hiệu: dùng mã băm
+            val dk = dedupeKey(e.name).ifEmpty { key }
+            val display = canonicalName(e.name).ifBlank { e.name.trim() }
             val group = (if (s.discovered) wantedGroup[dk] else null) ?: if (s.auto) classifyVn(display) else s.name
             val mk = "$group|$dk"                 // khóa gộp kênh trùng
             val cur = map[mk]
@@ -745,11 +822,17 @@ class Repo(context: Context) {
                         if (!r.isSuccessful) error("HTTP ${r.code}")
                         r.body?.string().orEmpty()
                     }
-                    val list = filterFor(s, parseM3u(body), wk)
+                    if (body.trimStart().startsWith("<")) error("trang web")
+                    var parsed = parseM3u(body)
+                    // Link là MỘT luồng phát (m3u8/ts/mp4): coi là một kênh duy nhất mang tên nhóm
+                    if (parsed.isEmpty() && !s.auto && (looksLikeStream(body) || isStreamUrl(s.url))) parsed = listOf(Entry(s.name, "", s.url))
+                    val list = filterFor(s, parsed, wk)
                     if (list.isEmpty()) error("trống")
                     file(s).writeText(serialize(list))   // lưu bản đã lọc cho nhẹ
+                    sourceStatus[s.url] = "OK:${list.size}"
                     s to list
                 } catch (e: Exception) {
+                    sourceStatus[s.url] = friendlyError(e)
                     val m = e.message.orEmpty()
                     if (s.discovered && (m.startsWith("HTTP 404") || m.startsWith("HTTP 410"))) {
                         gone.add(s.url); forget(s); null     // nguồn chết hẳn -> bỏ để tìm nguồn thay thế

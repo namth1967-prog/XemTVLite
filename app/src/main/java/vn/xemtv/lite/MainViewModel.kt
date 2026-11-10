@@ -43,6 +43,11 @@ data class UiState(
     val customNumbers: Map<String, Int> = emptyMap(),     // số kênh người dùng tự đặt
     val preferred: Map<String, String> = emptyMap(),      // link mặc định của từng kênh
     val customLogos: Map<String, String> = emptyMap(),    // logo người dùng tự đặt: id kênh -> link ảnh
+    val deletedLinks: Set<String> = emptySet(),           // link đã xoá khỏi kênh
+    val groupLabels: Map<String, String> = emptyMap(),    // tên hiển thị người dùng đổi cho nút nhóm
+    val groupOrder: List<String> = emptyList(),           // thứ tự nút nhóm người dùng tự xếp
+    val deletedGroups: Set<String> = emptySet(),          // nhóm dựng sẵn đã xoá nút
+    val sourceStatus: Map<String, String> = emptyMap(),   // kết quả nạp từng link nguồn (OK:<số kênh> hoặc lý do lỗi)
     val logoIndex: Map<String, String> = emptyMap(),      // logo tự tìm trên GitHub: khoá tên kênh -> link ảnh
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
@@ -76,6 +81,12 @@ data class UiState(
         all.asSequence()
             .filter { it.id !in absorbed }
             .map { c -> extra[c.id]?.let { ex -> c.copy(urls = (c.urls + ex).distinct()) } ?: c }
+            // Link người dùng đã xoá không hiện lại; kênh hết link thì ẩn
+            .map { c ->
+                val u = c.urls.filter { it !in deletedLinks }
+                if (u.size != c.urls.size) c.copy(urls = u) else c
+            }
+            .filter { it.urls.isNotEmpty() }
             .filter { c ->
                 c.id !in hidden &&
                     (c.urls.any { it in ok } || (c.group in userGroups && c.urls.any { it !in dead }))
@@ -86,6 +97,7 @@ data class UiState(
                 if (lg != c.logo) c.copy(logo = lg) else c
             }
             .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
+            .map { c -> if (c.group in deletedGroups) c.copy(group = G_OTHER) else c }   // nhóm đã xoá nút: kênh về "Khác"
             .toList()
     }
 }
@@ -109,6 +121,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler,
             merges = repo.merges, customNumbers = repo.customNumbers, preferred = repo.preferred,
             customLogos = repo.customLogos, logoIndex = repo.logoIndex(),
+            deletedLinks = repo.deletedLinks, groupLabels = repo.groupLabels, groupOrder = repo.groupOrder, deletedGroups = repo.deletedGroups,
         )
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -149,7 +162,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _ui.update { it.copy(all = core, loading = false) }
                     scan(ScanMode.NEW, autoFill = false, label = label2 ?: "Lượt 1/2: kênh Việt Nam")
                 }
-                _ui.update { it.copy(all = fresh, loading = false) }
+                _ui.update { it.copy(all = fresh, loading = false, sourceStatus = repo.statusSnapshot()) }
                 if (manual) {
                     val dc = (fresh.size - before).coerceAtLeast(0)
                     showNotice("Đã tải lại: ${fresh.size} kênh trong danh sách" + (if (dc > 0) ", thêm $dc kênh mới" else "") + ". Đang thử lại các kênh chưa chạy được…")
@@ -180,9 +193,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(favorites = f) }
     }
 
-    private fun sourcesChanged() {
+    private fun sourcesChanged(onFetched: ((List<Channel>) -> Unit)? = null) {
         _ui.update { it.copy(sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras, all = emptyList(), group = "") }
-        load()
+        load(onFetched = onFetched)
     }
 
     /** Thêm link mới -> tạo nhóm mới mang tên [name]. */
@@ -201,8 +214,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             showNotice("Đã tạo nhóm trống \"$n\". Giữ OK trên một kênh → Di chuyển kênh… để đưa vào nhóm.")
             return
         }
-        repo.sources = repo.sources + Source(n, u)
-        sourcesChanged()
+        val fixed = normalizeSourceUrl(u)          // link GitHub dạng trang (…/blob/…) tự đổi sang link file thô
+        repo.sources = repo.sources + Source(n, fixed)
+        sourcesChanged { fresh ->
+            // Báo kết quả: số kênh nạp được, hoặc lý do không ra kênh nào (trước đây im lặng)
+            val cnt = fresh.count { it.group == n }
+            val st = repo.statusOf(fixed)
+            val fixNote = if (fixed != u) " (đã đổi sang link file thô của GitHub)" else ""
+            showNotice(
+                if (cnt > 0) "Nhóm \"$n\": nạp được $cnt kênh$fixNote. Đang kiểm tra link…"
+                else "Nhóm \"$n\" chưa có kênh: ${st?.takeIf { !it.startsWith("OK:") } ?: "không đọc được kênh nào từ link này"}$fixNote."
+            )
+        }
     }
 
     fun removeSource(s: Source) {
@@ -243,7 +266,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.moved = emptyMap()
         repo.merges = emptyMap()
         repo.customNumbers = emptyMap()
-        _ui.update { it.copy(hidden = emptySet(), moved = emptyMap(), merges = emptyMap(), customNumbers = emptyMap()) }
+        repo.deletedLinks = emptySet()
+        repo.groupLabels = emptyMap()
+        repo.groupOrder = emptyList()
+        repo.deletedGroups = emptySet()
+        _ui.update {
+            it.copy(
+                hidden = emptySet(), moved = emptyMap(), merges = emptyMap(), customNumbers = emptyMap(),
+                deletedLinks = emptySet(), groupLabels = emptyMap(), groupOrder = emptyList(), deletedGroups = emptySet(),
+            )
+        }
     }
 
     fun toggleLeveler() {
@@ -286,6 +318,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun linkScore(url: String): Int = repo.health.score(url)
+
+    /** Xoá một link khỏi kênh (không hiện lại khi nạp danh sách; khôi phục ở Cài đặt). */
+    fun deleteLink(url: String) {
+        val set = repo.deletedLinks + url
+        repo.deletedLinks = set
+        _ui.update { it.copy(deletedLinks = set) }
+        showNotice("Đã xoá link. Khôi phục: Cài đặt → Khôi phục.")
+    }
+
+    // ----- Nút nhóm: đổi tên / dời / xoá -----
+    fun renameGroup(g: String, label: String) {
+        val m = LinkedHashMap(repo.groupLabels)
+        val t = label.trim()
+        if (t.isEmpty() || t == g) m.remove(g) else m[g] = t
+        repo.groupLabels = m
+        _ui.update { it.copy(groupLabels = m) }
+        showNotice(if (m.containsKey(g)) "Đã đổi tên nhóm \"$g\" thành \"${m[g]}\"." else "Nhóm \"$g\" đã về tên gốc.")
+    }
+
+    fun setGroupOrder(order: List<String>) {
+        repo.groupOrder = order
+        _ui.update { it.copy(groupOrder = order) }
+    }
+
+    /** Xoá nút nhóm: nhóm tự thêm bị xoá cùng nguồn của nó; nhóm dựng sẵn thì kênh chuyển sang "Khác". */
+    fun deleteGroup(g: String) {
+        val own = repo.sources.firstOrNull { !it.auto && it.name == g }
+        if (own != null) {
+            removeSource(own)
+        } else if (g != G_OTHER) {
+            val set = repo.deletedGroups + g
+            repo.deletedGroups = set
+            _ui.update { it.copy(deletedGroups = set, group = if (it.group == g) "" else it.group) }
+        }
+        val labels = repo.groupLabels - g
+        repo.groupLabels = labels
+        repo.groupOrder = repo.groupOrder.filter { it != g }
+        _ui.update { it.copy(groupLabels = labels, groupOrder = repo.groupOrder) }
+        showNotice("Đã xoá nhóm \"$g\".")
+    }
     fun linkHeight(url: String): Int = repo.health.height(url)
 
     /** Độ phân giải thực tế khi đang phát (chiều cao video). */
@@ -400,6 +472,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun runScan(targets: List<Channel>, label: String) {
+        val deletedLinks = _ui.value.deletedLinks
         _ui.update { it.copy(scanTotal = targets.size, scanDone = 0, scanLabel = label) }
         val h = repo.health
         val done = AtomicInteger(0)
@@ -431,6 +504,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             var good = 0
                             for (u in c.urls) {
                                 if (!isActive) return@withPermit
+                                if (u in deletedLinks) continue          // link người dùng đã xoá: khỏi đo
                                 var sc = prober.probe(u)
                                 if (sc == 0) { delay(1_500); sc = prober.probe(u) }   // đo lại sau 1,5 s để không loại oan link chập chờn
                                 if (sc > 0) { h.succeed(u, sc, prober.heightOf(u)); good++; if (good >= 2) break }

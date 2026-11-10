@@ -85,6 +85,16 @@ Giữ OK trên một kênh để mở menu, nay có thêm:
 - **Logo**: app tự tìm logo kênh Việt Nam trên GitHub cho kênh còn thiếu. Kênh nào vẫn thiếu: giữ OK → **Đặt logo…** rồi dán link ảnh.
 - **Chọn link phát** có ghi độ phân giải: 720p HD, 1080p FHD, 4K… ("chưa rõ ĐPG" nếu chưa biết; sẽ có sau khi link được đo hoặc phát thử).
 
+## Bản 3.8
+
+- **Xoá link**: trong **Chọn link phát**, mỗi link có nút **Xoá**. Link đã xoá không hiện lại khi nạp danh sách; hoàn lại ở **Cài đặt → Khôi phục**.
+- **Nút nhóm** (thanh nhóm phía trên): giữ OK trên một nút nhóm để **Đổi tên**, **Dời sang trái/phải** (thứ tự này cũng quyết định số kênh), hoặc **Xoá nhóm**. Nhóm do bạn tự thêm: xoá cả nhóm và các kênh của nó. Nhóm dựng sẵn: nút biến mất và kênh chuyển sang "Khác" (nhóm "Khác" không xoá được). "Tất cả" và "Yêu thích" cố định.
+
+## Bản 3.9
+
+- **Thêm link nguồn mới**: app báo ngay kết quả ("Nhóm X: nạp được N kênh") hoặc lý do không ra kênh (link không tồn tại, bị từ chối, trả về trang web, file không có kênh…). **Cài đặt** cũng ghi số kênh hoặc cảnh báo lỗi của từng nhóm.
+- Link GitHub dạng trang (`github.com/…/blob/…`) tự đổi sang link file thô. Danh sách chỉ có URL trơn, hoặc link là một luồng phát trực tiếp (`.m3u8`), cũng đọc được. Tên kênh tiếng Trung, Thái, Ả Rập, Nga… không còn bị loại.
+
 ## Vì sao nhẹ và mượt
 
 - Kotlin + Jetpack Compose, trình phát Media3 ExoPlayer chỉ nạp HLS.

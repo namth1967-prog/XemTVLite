@@ -46,8 +46,8 @@ private fun App(vm: MainViewModel = viewModel()) {
     val ui by vm.ui.collectAsState()
 
     // Thứ tự và SỐ KÊNH: VTV, VTVcab, SCTV, HTVC, Địa phương, Thể thao, Phim, nhóm của bạn, Khác
-    val ordered = remember(ui.alive, ui.sources, ui.customNumbers) {
-        applyNumbers(orderChannels(ui.alive, ui.sources.filter { !it.auto }.map { it.name }), ui.customNumbers)
+    val ordered = remember(ui.alive, ui.sources, ui.customNumbers, ui.groupOrder) {
+        applyNumbers(orderChannels(ui.alive, ui.sources.filter { !it.auto }.map { it.name }, ui.groupOrder), ui.customNumbers)
     }
     val numbers = remember(ordered) { ordered.withIndex().associate { it.value.id to it.index + 1 } }
 
@@ -85,6 +85,7 @@ private fun App(vm: MainViewModel = viewModel()) {
             scoreOf = vm::linkScore,
             onPickLink = vm::setPreferred,
             onResult = vm::report,
+            onDeleteLink = vm::deleteLink,
             heightOf = vm::linkHeight,
             onHeight = vm::reportHeight,
             onCurrent = { lastPlayed = it.id },
@@ -120,6 +121,10 @@ private fun App(vm: MainViewModel = viewModel()) {
             onMerge = vm::mergeChannel,
             onUnmerge = vm::unmerge,
             onSetLogo = vm::setLogo,
+            onDeleteLink = vm::deleteLink,
+            onRenameGroup = vm::renameGroup,
+            onMoveGroup = vm::setGroupOrder,
+            onDeleteGroup = vm::deleteGroup,
             heightOf = vm::linkHeight,
             onSetNumber = vm::setNumber,
             onClearNumber = vm::clearNumber,

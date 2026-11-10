@@ -50,6 +50,7 @@ fun PlayerScreen(
     onPickLink: (Channel, String) -> Unit,
     heightOf: (String) -> Int,
     onHeight: (String, Int) -> Unit,
+    onDeleteLink: (String) -> Unit,
     onCurrent: (Channel) -> Unit,
     onResult: (Channel, Boolean, String?) -> Unit,
     onExit: () -> Unit,
@@ -304,7 +305,7 @@ fun PlayerScreen(
             LinkPickerDialog(
                 name = cur.name, urls = cur.urls,
                 current = forcedLink?.takeIf { it.first == cur.id }?.second ?: preferred[cur.id],
-                ok = ok, dead = dead, scoreOf = scoreOf, heightOf = heightOf,
+                ok = ok, dead = dead, scoreOf = scoreOf, heightOf = heightOf, onDelete = onDeleteLink,
                 onPick = { u ->
                     onPickLink(cur, u)
                     forcedLink = cur.id to u
