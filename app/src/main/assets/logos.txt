@@ -18,18 +18,29 @@ QPVN|https://i.imgur.com/GQO7UNu.png
 
 Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
 Bắc Ninh|https://i.imgur.com/sPyR9t6.png
+BTV - TH TP. Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
+BTV - Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
 
 Cà Mau|https://i.imgur.com/ZKV1ok2.png
+CTV - TH Cà Mau|https://i.imgur.com/ZKV1ok2.png
+CTV - Cà Mau|https://i.imgur.com/ZKV1ok2.png
 
 Cao Bằng|https://i.imgur.com/RUJmK5D.png
+CRTV - Cao Bằng|https://i.imgur.com/RUJmK5D.png
 #Cao Bang TV|https://i.imgur.com/dGonewm.png
 #CRTV HD - Báo Cao Bằng|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728292499129/aeb3499f5824_640_360.png
 
 Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
 Cần Thơ 2|https://i.imgur.com/HqV3frO.png
 Cần Thơ 3|https://i.imgur.com/7FA1I1d.png
+TH Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
+TH Cần Thơ 2|https://i.imgur.com/HqV3frO.png
+TH Cần Thơ 3|https://i.imgur.com/7FA1I1d.png
 
 Đắk Lắk|https://i.imgur.com/7CQqMeh.png
+DRT - Đắk Lắk|https://i.imgur.com/7CQqMeh.png
+DRT - TH Đắk Lắk|https://i.imgur.com/7CQqMeh.png
+Đăk Lăk|https://i.imgur.com/7CQqMeh.png
 #DRT HD - Báo và PTTH Đắk Lắk|https://img-zlr1.tv360.vn/image1/2025/06/30/11/1751256466336/bda77a407209_640_360.png
 
 Đà Nẵng 1|https://i.postimg.cc/8jwBQ42q/dnrt1.png
@@ -58,8 +69,9 @@ Dong Thap TV|https://i.ibb.co/XFX7yw0/logo2-1.png
 Gia Lai TV|https://i.imgur.com/oUSJX0X.png
 
 HanoiTV1|https://i.imgur.com/Je3K25E.png
-#Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
+Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
 Hà Nội 2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
+HanoiTV2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
 
 Hải Phòng|https://i.imgur.com/iq9JLb9.png
 Hải Phòng 3|https://i.imgur.com/FEvJhRf.png
@@ -86,6 +98,7 @@ HTVC Thể Thao|https://i.imgur.com/ikaiET3.png
 Huế|https://i.imgur.com/bVWyWC7.png
 
 Hưng Yên|https://i.imgur.com/fakTCLE.png
+HYTV - TH Hưng Yên|https://i.imgur.com/fakTCLE.png
 #Hung Yen TV|https://i.imgur.com/TH1DWdm.png
 
 Khánh Hòa|https://i.postimg.cc/2qn7JYr6/KH.png
@@ -97,8 +110,10 @@ Lâm Đồng 1|https://i.postimg.cc/f35Jkqv6/LD1.png
 Lâm Đồng 2|https://i.postimg.cc/n99zRFfP/LD2.png
 
 Lạng Sơn|https://i.imgur.com/yxz02UD.png
+LSTV - TH Lạng Sơn|https://i.imgur.com/yxz02UD.png
 
 Lào Cai|https://i.imgur.com/Vd0P0rx.png
+THLC - TH Lào Cai|https://i.imgur.com/Vd0P0rx.png
 #THLC HD - Báo và PTTH Lào Cai|https://lichphatsongtivi.com/storage/images/thumbnails/lich-phat-song-thlc.png
 
 LTV - Báo Lai Châu|https://images.fptplay53.net/media/channels/icon_channel_lai-chau_165649245279.png
@@ -106,8 +121,10 @@ LTV - Báo Lai Châu|https://images.fptplay53.net/media/channels/icon_channel_la
 #Nghệ An|https://i.postimg.cc/HxP9pG9N/nghean.png
 #NTV - Báo và PTTH Nghệ An|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821989411/75bfb004e210_640_360.png
 Nghe An TV|https://i.imgur.com/d9YEEwC.png
+NATV TH Nghe An|https://i.imgur.com/d9YEEwC.png
 
 Ninh Bình|https://i.imgur.com/pL4NqYO.png
+NBTV - TH NINH BÌNH|https://i.imgur.com/pL4NqYO.png
 #Ninh Bình|https://i.imgur.com/qHQTwJ9.png
 #NBTV - Báo và PTTH Ninh Bình|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728293640310/9aea44bf0f8d_640_360.png
 
@@ -129,9 +146,12 @@ ON Vie Dramas (1080i)|https://i.ibb.co/VptvgFVx/IMG-2530.webp
 ON Vie Giải Trí|https://raw.githubusercontent.com/HaNoiIPTV/HaNoiIPTV.m3u/refs/heads/master/VTVCab1%20-%20ON%20Vie%20GI%E1%BA%A2I%20TR%C3%8D.png
 
 Phú Thọ|https://i.imgur.com/LXuRwJY.png
+PTV - TH Phú Thọ|https://i.imgur.com/LXuRwJY.png
 
 Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
+QNgTV1 - TH Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
 Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
+QNgTV2 - TH Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
 
 Quảng Ninh 1|https://i.imgur.com/KVia0uU.png
 Quảng Ninh 3|https://i.imgur.com/AheAmMj.png
@@ -167,6 +187,7 @@ Tây Ninh|https://i.imgur.com/HFm3hbC.png
 #Tay Ninh TV|https://tayninhtv.vn/static/images/logo.png
 
 Thái Nguyên|https://i.imgur.com/P3pbab8.png
+TN - TH Thái Nguyên|https://i.imgur.com/P3pbab8.png
 #Thai Nguyen TV|https://thainguyentv.vn/modules/frontend/themes/ptthtn/images/logo.png
 #TN - Báo và PTTH Thái Nguyên|https://img-zlr1.tv360.vn/image1/2025/07/01/07/1751329966912/3ddadef93c24_640_360.png
 
@@ -182,6 +203,11 @@ Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
 Vĩnh Long 3|https://i.imgur.com/44c1Yoz.png
 Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
 Vĩnh Long 5|https://i.imgur.com/hSdSUqx.png
+TH - Vĩnh Long 1|https://i.imgur.com/q3fjpYc.png
+TH - Vĩnh Long 2|https://i.imgur.com/zGv54Ed.png
+TH - Vĩnh Long 3|https://i.imgur.com/44c1Yoz.png
+TH - Vĩnh Long 4|https://i.imgur.com/JWDsJxB.png
+TH - Vĩnh Long 5|https://i.imgur.com/hSdSUqx.png
 
 #------------ VTV------------------------
 VTV10|https://i.postimg.cc/4nY8BrVK/V10.png
