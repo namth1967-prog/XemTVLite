@@ -4,7 +4,7 @@
 # - Dòng bắt đầu bằng # là ghi chú, bị bỏ qua. Logo ở đây luôn được ưu tiên hơn logo trong danh sách nguồn.
 # Ví dụ (bỏ dấu # ở đầu dòng và thay link thật):
 # VTV1|https://example.com/vtv1.png
-# Chưa có Bình Thuận, 
+ 
 
 An Giang 1|https://i.imgur.com/mgp6RAU.png
 An Giang 2|https://i.imgur.com/efrauLr.png
@@ -16,10 +16,13 @@ ANTV|https://img-zlr1.tv360.vn/image1/2020_09_23/1600822516608/b33963dc0df8_640_
 
 QPVN|https://i.imgur.com/GQO7UNu.png
 
+#Bắc Giang
 Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
 Bắc Ninh|https://i.imgur.com/sPyR9t6.png
 BTV - TH TP. Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
 BTV - Bắc Ninh|https://i.postimg.cc/BjpqCL1S/BNTV.png
+# Chưa có Bình Thuận
+# BTV6 - SHOPING 24H
 
 Cà Mau|https://i.imgur.com/ZKV1ok2.png
 CTV - TH Cà Mau|https://i.imgur.com/ZKV1ok2.png
@@ -33,6 +36,7 @@ CRTV - TH Cao Bằng|https://i.imgur.com/RUJmK5D.png
 Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
 Cần Thơ 2|https://i.imgur.com/HqV3frO.png
 Cần Thơ 3|https://i.imgur.com/7FA1I1d.png
+THPTCT1|https://i.imgur.com/F5OhQVa.png
 TH Cần Thơ 1|https://i.imgur.com/F5OhQVa.png
 TH Cần Thơ 2|https://i.imgur.com/HqV3frO.png
 TH Cần Thơ 3|https://i.imgur.com/7FA1I1d.png
@@ -75,6 +79,7 @@ Hà Nội 2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
 HanoiTV2|https://i.postimg.cc/Nft4rJgS/Hanoi-TV2.png
 
 Hải Phòng|https://i.imgur.com/iq9JLb9.png
+THV|https://i.imgur.com/iq9JLb9.png
 Hải Phòng 3|https://i.imgur.com/FEvJhRf.png
 #THP3 - Báo và PTTH Hải Phòng|https://raw.githubusercontent.com/vuminhthanh12/Logo/refs/heads/main/THP3.png
 
@@ -128,6 +133,7 @@ NATV TH Nghe An|https://i.imgur.com/d9YEEwC.png
 
 Ninh Bình|https://i.imgur.com/pL4NqYO.png
 NBTV - TH NINH BÌNH|https://i.imgur.com/pL4NqYO.png
+NTV|https://i.imgur.com/pL4NqYO.png
 #Ninh Bình|https://i.imgur.com/qHQTwJ9.png
 #NBTV - Báo và PTTH Ninh Bình|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728293640310/9aea44bf0f8d_640_360.png
 
@@ -162,6 +168,7 @@ Quảng Ninh 3|https://i.imgur.com/AheAmMj.png
 #Quảng Ninh 3|https://i.imgur.com/ci6kzgL.png
 
 Quảng Trị|https://i.imgur.com/6qOelwt.png
+QTTT - TH Quảng Trị|https://i.imgur.com/6qOelwt.png
 #QTTV - Báo và PTTH Quảng Trị|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/QTTV.jpg
 
 Quang Nam TV|https://i.imgur.com/uWiOoVg.png
@@ -182,6 +189,7 @@ SCTV19|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/
 SCTV20|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/SCTV20.png
 
 Sơn La|https://i.postimg.cc/3JnLC20C/Snews.png
+STV|https://i.postimg.cc/3JnLC20C/Snews.png
 
 Thanh Hóa|https://i.imgur.com/UwTCbZ5.png
 #TTV HD - Báo và PTTH Thanh Hóa|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821878406/58ff77e57117_640_360.png
