@@ -49,6 +49,8 @@ data class UiState(
     val deletedGroups: Set<String> = emptySet(),          // nhóm dựng sẵn đã xoá nút
     val sourceStatus: Map<String, String> = emptyMap(),   // kết quả nạp từng link nguồn (OK:<số kênh> hoặc lý do lỗi)
     val logoIndex: Map<String, String> = emptyMap(),      // logo tự tìm trên GitHub: khoá tên kênh -> link ảnh
+    val fileLogos: LogoIndex = LogoIndex(emptyMap()),     // logo trong assets/logos.txt (tra theo tên kênh)
+    val fileLogoNames: Map<String, String> = emptyMap(),  // logos.txt: khoá -> tên gốc (để báo dòng nào không khớp kênh nào)
     val hidden: Set<String> = emptySet(),          // kênh người dùng đã xoá (id)
     val moved: Map<String, String> = emptyMap(),   // kênh người dùng đã di chuyển: id -> nhóm mới
     val notice: String? = null,                    // thông báo ngắn (VD: kết quả bấm Tải lại)
@@ -92,8 +94,9 @@ data class UiState(
                     (c.urls.any { it in ok } || (c.group in userGroups && c.urls.any { it !in dead }))
             }
             .map { c ->
-                // Logo: người dùng tự đặt > logo trong nguồn > logo tự tìm trên GitHub
-                val lg = customLogos[c.id] ?: c.logo.ifBlank { logoIndex[dedupeKey(c.name)] ?: "" }
+                // Logo: người dùng tự đặt > logos.txt > logo trong nguồn > logo tự tìm trên GitHub
+                val dk = dedupeKey(c.name)
+                val lg = customLogos[c.id] ?: fileLogos.find(dk) ?: c.logo.ifBlank { logoIndex[dk] ?: "" }
                 if (lg != c.logo) c.copy(logo = lg) else c
             }
             .map { c -> moved[c.id]?.let { c.copy(group = it) } ?: c }
@@ -113,6 +116,7 @@ private const val FILL_EVERY_MS = 12L * 3600 * 1000
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = Repo(app)
     private val prober = Prober()
+    private val fileLogoData = repo.fileLogos()      // đọc logos.txt một lần
     private val _ui = MutableStateFlow(
         UiState(
             favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras,
@@ -121,6 +125,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler,
             merges = repo.merges, customNumbers = repo.customNumbers, preferred = repo.preferred,
             customLogos = repo.customLogos, logoIndex = repo.logoIndex(),
+            fileLogos = LogoIndex(fileLogoData.mapValues { it.value.second }), fileLogoNames = fileLogoData.mapValues { it.value.first },
             deletedLinks = repo.deletedLinks, groupLabels = repo.groupLabels, groupOrder = repo.groupOrder, deletedGroups = repo.deletedGroups,
         )
     )

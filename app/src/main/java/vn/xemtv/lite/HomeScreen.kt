@@ -739,7 +739,11 @@ private fun LogoBox(c: Channel) {
     if (c.logo.isNotBlank() && !failed) {
         AsyncImage(
             model = c.logo, contentDescription = c.name, modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit, onError = { failed = true },
+            contentScale = ContentScale.Fit,
+            onError = { st ->
+                failed = true
+                LogoErrors.add(c.logo, st.result.throwable.message.orEmpty().take(50).ifBlank { st.result.throwable.javaClass.simpleName })
+            },
         )
     } else {
         val hue = ((c.name.hashCode().toLong() and 0x7fffffffL) % 360L).toFloat()
@@ -862,6 +866,27 @@ private fun SettingsDialog(
                     Pill("Khôi phục", false, enabled = ui.hidden.isNotEmpty() || ui.moved.isNotEmpty() || ui.merges.isNotEmpty() || ui.customNumbers.isNotEmpty() ||
                         ui.deletedLinks.isNotEmpty() || ui.groupLabels.isNotEmpty() || ui.deletedGroups.isNotEmpty() || ui.groupOrder.isNotEmpty(),
                         small = true, onClick = onRestore)
+                }
+                // Chẩn đoán logo: dòng nào trong logos.txt không khớp tên kênh nào, logo nào tải lỗi
+                if (ui.fileLogoNames.isNotEmpty()) {
+                    val chanKeys = remember(ui.all) { ui.all.map { dedupeKey(it.name) }.toSet() }
+                    val unmatched = remember(chanKeys, ui.fileLogoNames) {
+                        ui.fileLogoNames.filter { (k, _) -> chanKeys.none { ck -> ck == k || ck.startsWith("$k ") || k.startsWith("$ck ") } }.values.toList()
+                    }
+                    SettingRow("logos.txt: khớp ${ui.fileLogoNames.size - unmatched.size}/${ui.fileLogoNames.size} dòng") {}
+                    if (unmatched.isNotEmpty()) {
+                        Text(
+                            "Không khớp kênh nào (kiểm tra lại tên kênh): " + unmatched.take(8).joinToString(", ") + if (unmatched.size > 8) "…" else "",
+                            fontSize = 12.sp, color = Color(0xFFFFC857),
+                        )
+                    }
+                }
+                val logoErrs = remember { LogoErrors.snapshot() }
+                if (logoErrs.isNotEmpty()) {
+                    Text(
+                        "Logo không tải được (${logoErrs.size}): " + logoErrs.take(3).joinToString("; ") { "${it.first}: ${it.second}" },
+                        fontSize = 12.sp, color = Color(0xFFFFC857),
+                    )
                 }
                 HorizontalDivider(color = divider)
 
@@ -1056,3 +1081,12 @@ private val nextOptions = KeyboardOptions(imeAction = ImeAction.Done)
 /** Phím Xong/Next trên bàn phím ảo chạy [onDone] (thường là rời ô nhập hoặc sang ô kế tiếp). */
 private fun nextActions(onDone: () -> Unit): KeyboardActions =
     KeyboardActions(onNext = { onDone() }, onDone = { onDone() })
+
+
+/** Ghi nhận logo tải lỗi (để hiện trong Cài đặt): link -> lý do. */
+internal object LogoErrors {
+    private val map = java.util.concurrent.ConcurrentHashMap<String, String>()
+    fun add(url: String, message: String) { map[url] = message }
+    /** (tên máy chủ, lý do) của các logo tải lỗi. */
+    fun snapshot(): List<Pair<String, String>> = map.entries.map { (u, m) -> u.substringAfter("://").substringBefore('/') to m }
+}

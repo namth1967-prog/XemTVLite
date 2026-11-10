@@ -95,6 +95,11 @@ Giữ OK trên một kênh để mở menu, nay có thêm:
 - **Thêm link nguồn mới**: app báo ngay kết quả ("Nhóm X: nạp được N kênh") hoặc lý do không ra kênh (link không tồn tại, bị từ chối, trả về trang web, file không có kênh…). **Cài đặt** cũng ghi số kênh hoặc cảnh báo lỗi của từng nhóm.
 - Link GitHub dạng trang (`github.com/…/blob/…`) tự đổi sang link file thô. Danh sách chỉ có URL trơn, hoặc link là một luồng phát trực tiếp (`.m3u8`), cũng đọc được. Tên kênh tiếng Trung, Thái, Ả Rập, Nga… không còn bị loại.
 
+## Bản 4.0
+
+- **Banner** ứng dụng trên màn hình chính Android TV đổi theo hình "Lê Thu TV" (`app/src/main/res/drawable-nodpi/banner.png`, 960×540). Muốn đổi hình khác chỉ cần thay file này (giữ tên, tỷ lệ 16:9).
+- **Logo từ `logos.txt`**: khớp theo tên kênh, kể cả khi tên trong file chỉ là phần đầu (VD dòng `VTV3|…` áp cho "VTV3 Thể thao"). **Cài đặt** cho biết khớp bao nhiêu dòng, dòng nào không khớp kênh nào, và logo nào tải lỗi (kèm tên máy chủ + lý do). App đọc được cả logo dạng SVG.
+
 ## Vì sao nhẹ và mượt
 
 - Kotlin + Jetpack Compose, trình phát Media3 ExoPlayer chỉ nạp HLS.

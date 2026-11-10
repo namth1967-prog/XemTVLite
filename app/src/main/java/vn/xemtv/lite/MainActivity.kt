@@ -3,6 +3,11 @@ package vn.xemtv.lite
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import coil.Coil
+import coil.ImageLoader
+import coil.decode.SvgDecoder
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +38,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(this)
+        // Bộ tải logo: giả User-Agent trình duyệt (nhiều trang chặn UA mặc định -> logo không hiện) và đọc được ảnh SVG
+        Coil.setImageLoader(
+            ImageLoader.Builder(this)
+                .okHttpClient {
+                    OkHttpClient.Builder()
+                        .connectTimeout(10, TimeUnit.SECONDS)
+                        .readTimeout(15, TimeUnit.SECONDS)
+                        .addInterceptor { chain ->
+                            chain.proceed(
+                                chain.request().newBuilder()
+                                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 11; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+                                    .build()
+                            )
+                        }
+                        .build()
+                }
+                .components { add(SvgDecoder.Factory()) }
+                .build()
+        )
         setContent {
             MaterialTheme(colorScheme = Colors) {
                 Surface(color = Colors.background, contentColor = Color.White) { App() }

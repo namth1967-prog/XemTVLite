@@ -12,8 +12,8 @@ android {
         applicationId = "vn.xemtv.lite"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "3.9"
+        versionCode = 31
+        versionName = "4.0"
         resourceConfigurations += listOf("vi", "en")
     }
 
@@ -53,4 +53,5 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")      // đọc logo dạng SVG (nhiều logo Wikipedia là SVG)
 }

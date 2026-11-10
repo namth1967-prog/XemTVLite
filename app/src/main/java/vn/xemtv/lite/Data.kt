@@ -661,16 +661,21 @@ class Repo(context: Context) {
         else file(s).takeIf { it.exists() }?.let { filterFor(s, parseM3u(it.readText()), wantedGroups().keys) } ?: emptyList()
     } catch (e: Exception) { emptyList() }
 
-    /** assets/logos.txt: mỗi dòng "Tên kênh|link logo" (bỏ qua dòng bắt đầu bằng #). */
-    private val logoMap: Map<String, String> by lazy {
-        try {
-            ctx.assets.open("logos.txt").bufferedReader().readLines()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('|') }
-                .associate { l -> dedupeKey(l.substringBefore('|')) to l.substringAfter('|').trim() }
-                .filter { it.key.isNotEmpty() && it.value.startsWith("http", true) }
-        } catch (e: Exception) { emptyMap() }
-    }
+    /**
+     * assets/logos.txt: mỗi dòng "Tên kênh|link logo" (bỏ qua dòng bắt đầu bằng #).
+     * Trả về: khoá chuẩn hoá của tên kênh -> (tên gốc trong file, link logo).
+     */
+    fun fileLogos(): Map<String, Pair<String, String>> = try {
+        ctx.assets.open("logos.txt").bufferedReader().readLines()
+            .map { it.trim().removePrefix("\uFEFF") }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('|') }
+            .mapNotNull { l ->
+                val name = l.substringBefore('|').trim()
+                val url = l.substringAfter('|').trim()
+                val k = dedupeKey(name)
+                if (k.isEmpty() || !url.startsWith("http", true)) null else k to (name to url)
+            }.toMap()
+    } catch (e: Exception) { emptyMap() }
 
     private fun nameScore(n: String) = (if (hasAccent(n)) 2 else 0) + (if (!n.contains('(')) 1 else 0)
 
@@ -760,8 +765,7 @@ class Repo(context: Context) {
         }
         // Gộp kênh trùng còn sót (khác nhóm, hoặc tên này là phần đầu của tên kia) mà vẫn giữ mọi link
         val deduped = dedupeChannels(map.values.toList())
-        // Logo tự đặt trong assets/logos.txt luôn được ưu tiên
-        val withLogo = deduped.map { c -> logoMap[dedupeKey(c.name)]?.let { c.copy(logo = it) } ?: c }
+        val withLogo = deduped        // logo từ logos.txt / tự đặt / tự tìm được áp dụng lúc hiển thị (xem UiState.alive)
         val (auto, user) = withLogo.partition { it.group in AUTO_GROUPS }
         return auto.sortedBy { natKey(it.name) } + user
     }
@@ -852,5 +856,28 @@ class Repo(context: Context) {
             if (gone.isNotEmpty()) { val g = gone.toSet(); found = found.filter { it !in g } }
             merge(results.filterNotNull()).also { saveSnapshot(it) }
         }
+    }
+}
+
+
+/**
+ * Tra logo theo tên kênh chuẩn hoá. Khớp đúng trước; nếu không, khớp theo PHẦN ĐẦU của tên
+ * (khoá "vtv3" áp cho "VTV3 Thể thao"; kênh "ON Movies" nhận logo của dòng "ON Movies You TV").
+ */
+class LogoIndex(entries: Map<String, String>) {
+    private val exact = entries
+    private val byFirst: Map<String, List<Pair<List<String>, String>>> =
+        entries.entries.map { (k, u) -> k.split(' ').filter { it.isNotEmpty() } to u }
+            .filter { it.first.isNotEmpty() }
+            .groupBy { it.first[0] }
+
+    fun find(dk: String): String? {
+        if (dk.isEmpty() || exact.isEmpty()) return null
+        exact[dk]?.let { return it }
+        val ct = dk.split(' ').filter { it.isNotEmpty() }
+        if (ct.isEmpty()) return null
+        val group = byFirst[ct[0]] ?: return null
+        group.filter { (kt, _) -> kt.size <= ct.size && ct.take(kt.size) == kt }.maxByOrNull { it.first.size }?.let { return it.second }
+        return group.filter { (kt, _) -> kt.size > ct.size && kt.take(ct.size) == ct }.minByOrNull { it.first.size }?.second
     }
 }
