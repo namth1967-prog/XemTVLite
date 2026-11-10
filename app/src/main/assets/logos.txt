@@ -26,7 +26,7 @@ CTV - TH Cà Mau|https://i.imgur.com/ZKV1ok2.png
 CTV - Cà Mau|https://i.imgur.com/ZKV1ok2.png
 
 Cao Bằng|https://i.imgur.com/RUJmK5D.png
-CRTV - Cao Bằng|https://i.imgur.com/RUJmK5D.png
+CRTV - TH Cao Bằng|https://i.imgur.com/RUJmK5D.png
 #Cao Bang TV|https://i.imgur.com/dGonewm.png
 #CRTV HD - Báo Cao Bằng|https://img-zlr1.tv360.vn/image1/2024/10/07/16/1728292499129/aeb3499f5824_640_360.png
 
@@ -67,6 +67,7 @@ Dong Thap TV|https://i.ibb.co/XFX7yw0/logo2-1.png
 
 #Gia Lai|https://i.postimg.cc/grHBjV9t/Gialai.png
 Gia Lai TV|https://i.imgur.com/oUSJX0X.png
+GTV - TH Gia Lai|https://i.imgur.com/oUSJX0X.png
 
 HanoiTV1|https://i.imgur.com/Je3K25E.png
 Hà Nội 1|https://i.postimg.cc/hvL15x02/Hanoi-TV1.png
@@ -89,8 +90,10 @@ HTV9|https://i.imgur.com/6GSN524.png
 
 HTVC Du Lịch|https://i.imgur.com/mDemDFL.png
 HTVC Gia Đình|https://i.imgur.com/Al6xJme.png
+HTVC Family|https://i.imgur.com/Al6xJme.png
 HTVC Phim|https://i.imgur.com/P0wqvmu.png
 HTVC Phụ Nữ|https://i.imgur.com/FxzpvHI.png
+HTVC Women|https://i.imgur.com/FxzpvHI.png
 HTVC+|https://i.imgur.com/Tkjs3C5.png
 HTVC Thuần Việt|https://i.imgur.com/KtMeo6q.png
 HTVC Thể Thao|https://i.imgur.com/ikaiET3.png
@@ -150,6 +153,7 @@ PTV - TH Phú Thọ|https://i.imgur.com/LXuRwJY.png
 
 Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
 QNgTV1 - TH Quảng Ngãi 1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
+Quảng Ngãi TV1|https://i.postimg.cc/pdnCmw7y/QNg-TV1.png
 Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
 QNgTV2 - TH Quảng Ngãi 2|https://i.postimg.cc/0j90HbNC/QNg-TV2.png
 
@@ -183,6 +187,7 @@ Thanh Hóa|https://i.imgur.com/UwTCbZ5.png
 #TTV HD - Báo và PTTH Thanh Hóa|https://img-zlr1.tv360.vn/image1/2020_09_23/1600821878406/58ff77e57117_640_360.png
 
 Tây Ninh|https://i.imgur.com/HFm3hbC.png
+TN - TH TÂY NINH|https://i.imgur.com/HFm3hbC.png
 #Tây Ninh TV - Báo và PTTH Tây Ninh|https://raw.githubusercontent.com/vuminhthanh12/vuminhthanh12/refs/heads/main/TayNinhTV.jpg
 #Tay Ninh TV|https://tayninhtv.vn/static/images/logo.png
 
