@@ -97,8 +97,13 @@ Giữ OK trên một kênh để mở menu, nay có thêm:
 
 ## Bản 4.0
 
-- **Banner** ứng dụng trên màn hình chính Android TV đổi theo hình "Lê Thu TV" (`app/src/main/res/drawable-nodpi/banner.png`, 960×540). Muốn đổi hình khác chỉ cần thay file này (giữ tên, tỷ lệ 16:9).
 - **Logo từ `logos.txt`**: khớp theo tên kênh, kể cả khi tên trong file chỉ là phần đầu (VD dòng `VTV3|…` áp cho "VTV3 Thể thao"). **Cài đặt** cho biết khớp bao nhiêu dòng, dòng nào không khớp kênh nào, và logo nào tải lỗi (kèm tên máy chủ + lý do). App đọc được cả logo dạng SVG.
+
+## Bản 4.1: một ảnh PNG cho banner, icon và màn hình chào
+
+- Chỉ cần **một file ảnh**: `app/branding/app_logo.png` (ảnh vuông, khuyến nghị từ 512×512 trở lên). Mỗi lần build, app tự sinh từ file đó: **banner** Android TV (16:9), **icon** ứng dụng và **màn hình chào** (hiện khoảng 1,6 giây khi mở app).
+- Muốn đổi: thay file `app_logo.png` bằng ảnh mới (giữ nguyên tên) rồi build lại. Màu nền của banner/icon/màn hình chào tự lấy từ 4 góc ảnh, nên nên dùng ảnh có nền đồng màu ở các góc.
+- **Mức âm lượng chuẩn** trong Cài đặt: Vừa / To / Rất to / Tối đa / Cực đại / Hết cỡ (mặc định **Cực đại**). Số liệu mô phỏng: tiếng thực tế thấp hơn mức "đích" khoảng 2–4 dB; Cực đại là to nhất còn khá sạch, Hết cỡ to hơn nữa nhưng bắt đầu rè. Âm lượng của TV/box vẫn do bạn chỉnh bằng remote, app chỉ làm tiếng của các kênh to đều và to hơn.
 
 ## Vì sao nhẹ và mượt
 

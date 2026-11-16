@@ -596,6 +596,11 @@ class Repo(context: Context) {
         }
         set(v) = writeMap("nums", v.mapValues { it.value.toString() })
 
+    /** Mức âm lượng chuẩn 1..6 (xem Leveler.levels); mặc định 5 = Cực đại. */
+    var volumeLevel: Int
+        get() = prefs.getInt("vollevel", 5)
+        set(v) { prefs.edit().putInt("vollevel", v).apply() }
+
     /** Cân bằng âm lượng giữa các kênh (bộ tự chỉnh mức tiếng). */
     var leveler: Boolean
         get() = prefs.getBoolean("leveler", true)

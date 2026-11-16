@@ -14,6 +14,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -59,7 +74,15 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             MaterialTheme(colorScheme = Colors) {
-                Surface(color = Colors.background, contentColor = Color.White) { App() }
+                Surface(color = Colors.background, contentColor = Color.White) {
+                    // Màn hình chào: ảnh app_logo.png trên màu nền của ảnh, mờ dần sau ~1,6 giây
+                    var splash by rememberSaveable { mutableStateOf(true) }
+                    LaunchedEffect(Unit) { delay(1600); splash = false }
+                    Box(Modifier.fillMaxSize()) {
+                        App()
+                        AnimatedVisibility(visible = splash, exit = fadeOut(tween(500))) { SplashOverlay() }
+                    }
+                }
             }
         }
     }
@@ -140,6 +163,7 @@ private fun App(vm: MainViewModel = viewModel()) {
             onScanDead = { vm.scan(ScanMode.DEAD) },
             onToggleAutoFill = vm::toggleAutoFill,
             onToggleLeveler = vm::toggleLeveler,
+            onVolumeLevel = vm::setVolumeLevel,
             onHide = vm::hideChannel,
             onMove = vm::moveChannel,
             onMerge = vm::mergeChannel,
@@ -163,6 +187,18 @@ private fun App(vm: MainViewModel = viewModel()) {
                 playList = shown
                 playIndex = shown.indexOf(c)
             },
+        )
+    }
+}
+
+
+/** Màn hình chào: ảnh app_logo.png (do generateBrand sinh thành splash_logo) trên màu nền lấy từ góc ảnh. */
+@Composable
+private fun SplashOverlay() {
+    Box(Modifier.fillMaxSize().background(colorResource(R.color.brand_bg)), contentAlignment = Alignment.Center) {
+        Image(
+            painter = painterResource(R.drawable.splash_logo), contentDescription = null,
+            modifier = Modifier.fillMaxHeight(0.86f), contentScale = ContentScale.Fit,
         )
     }
 }

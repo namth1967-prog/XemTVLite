@@ -39,6 +39,7 @@ data class UiState(
     val tokenMsg: String? = null,
     val autoFill: Boolean = true,    // tự tìm nguồn bổ sung khi có kênh chết
     val leveler: Boolean = true,     // cân bằng âm lượng giữa các kênh
+    val volumeLevel: Int = 5,        // mức âm lượng chuẩn 1..6
     val merges: Map<String, String> = emptyMap(),         // gộp thủ công: id kênh bị gộp -> id kênh đích
     val customNumbers: Map<String, Int> = emptyMap(),     // số kênh người dùng tự đặt
     val preferred: Map<String, String> = emptyMap(),      // link mặc định của từng kênh
@@ -122,7 +123,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             favorites = repo.favorites, sources = repo.sources, builtIn = repo.builtIn, extras = repo.extras,
             ok = repo.health.ok(), dead = repo.health.dead(),
             ghToken = repo.ghToken, foundCount = repo.found.size, autoFill = repo.autoFill,
-            hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler,
+            hidden = repo.hidden, moved = repo.moved, leveler = repo.leveler, volumeLevel = repo.volumeLevel,
             merges = repo.merges, customNumbers = repo.customNumbers, preferred = repo.preferred,
             customLogos = repo.customLogos, logoIndex = repo.logoIndex(),
             fileLogos = LogoIndex(fileLogoData.mapValues { it.value.second }), fileLogoNames = fileLogoData.mapValues { it.value.first },
@@ -143,6 +144,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         Leveler.enabled = repo.leveler
+        Leveler.setLevel(repo.volumeLevel)
         load()
         // Tự tìm logo cho kênh thiếu logo (nền, không bắt buộc, tối đa 1 lần/7 ngày)
         viewModelScope.launch { if (repo.refreshLogoIndex()) _ui.update { it.copy(logoIndex = repo.logoIndex()) } }
@@ -281,6 +283,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 deletedLinks = emptySet(), groupLabels = emptyMap(), groupOrder = emptyList(), deletedGroups = emptySet(),
             )
         }
+    }
+
+    fun setVolumeLevel(level: Int) {
+        repo.volumeLevel = level
+        Leveler.setLevel(level)
+        _ui.update { it.copy(volumeLevel = level) }
     }
 
     fun toggleLeveler() {

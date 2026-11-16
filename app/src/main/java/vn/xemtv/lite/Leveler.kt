@@ -18,6 +18,17 @@ import kotlin.math.tanh
 /** Bật/tắt cân bằng âm lượng (đặt từ Cài đặt). */
 object Leveler {
     @Volatile var enabled: Boolean = true
+
+    /**
+     * Các mức âm lượng chuẩn (RMS "đích"): 1 Vừa, 2 To, 3 Rất to, 4 Tối đa, 5 Cực đại, 6 Hết cỡ.
+     * Mô phỏng cho thấy tiếng thực tế thấp hơn đích khoảng 2-4 dB (bộ làm mượt nghiêng về đoạn to).
+     * Từ mức 5 trở lên tiếng rất to nhưng bắt đầu bị bóp méo (mức 6 rè rõ hơn), nên mức 5 là to nhất còn khá sạch.
+     */
+    val levels = listOf(0.109, 0.164, 0.23, 0.32, 0.40, 0.50)
+    val names = listOf("Vừa", "To", "Rất to", "Tối đa", "Cực đại", "Hết cỡ")
+
+    @Volatile var target: Double = levels[4]
+    fun setLevel(level: Int) { target = levels[(level - 1).coerceIn(0, levels.size - 1)] }
 }
 
 /**
@@ -68,7 +79,8 @@ class LevelerProcessor : BaseAudioProcessor() {
                 rms > level -> level + (rms - level) * 0.5
                 else -> level + (rms - level) * 0.02
             }
-            val desired = (TARGET / level).coerceIn(MIN_GAIN, MAX_GAIN)
+            val t = Leveler.target
+            val desired = (t / level).coerceIn(MIN_GAIN, minOf(MAX_GAIN, t / MIN_INPUT))
             g1 = when {
                 warm < WARM_BLOCKS -> desired
                 desired < gain -> gain + (desired - gain) * 0.4
@@ -93,9 +105,9 @@ class LevelerProcessor : BaseAudioProcessor() {
     }
 
     private companion object {
-        const val TARGET = 0.164       // mức RMS mong muốn (~ -16 dBFS); 0.07 -> 0.091 (+30%) -> 0.109 (+20%) -> 0.164 (+50%)
+        const val MIN_INPUT = 0.0176   // kênh nhỏ hơn mức này (~ -35 dBFS) không được kéo lên hết tới mức chuẩn (tránh khuếch đại nhiễu)
         const val MIN_GAIN = 0.5       // giảm tối đa ~6 dB
-        const val MAX_GAIN = 9.3       // tăng tối đa ~19 dB
+        const val MAX_GAIN = 16.0      // tăng tối đa ~24 dB
         const val SILENCE = 0.003      // dưới ngưỡng này coi là im lặng
         const val WARM_BLOCKS = 8
         const val KNEE = 0.85

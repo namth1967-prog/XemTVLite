@@ -4,6 +4,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// ===== MỘT ẢNH PNG DUY NHẤT -> banner, icon, màn hình chào =====
+// Mỗi lần build, tác vụ generateBrand chạy branding/BrandGen.java để sinh banner, icon và ảnh màn hình chào
+// từ file app/branding/app_logo.png vào build/generated/brand/res. Muốn đổi tất cả: chỉ cần thay file PNG đó.
+val brandSrc = file("branding/app_logo.png")
+val brandGen = file("branding/BrandGen.java")
+val brandOut = layout.buildDirectory.dir("generated/brand/res")
+
+val generateBrand = tasks.register<Exec>("generateBrand") {
+    inputs.file(brandSrc)
+    inputs.file(brandGen)
+    outputs.dir(brandOut)
+    commandLine(
+        File(System.getProperty("java.home"), "bin/java").path,
+        "-Djava.awt.headless=true",
+        brandGen.path, brandSrc.path, brandOut.get().asFile.path,
+    )
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(generateBrand) }
+
 android {
     namespace = "vn.xemtv.lite"
     compileSdk = 34
@@ -12,8 +31,8 @@ android {
         applicationId = "vn.xemtv.lite"
         minSdk = 26
         targetSdk = 34
-        versionCode = 31
-        versionName = "4.0"
+        versionCode = 32
+        versionName = "4.1"
         resourceConfigurations += listOf("vi", "en")
     }
 
@@ -33,6 +52,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    sourceSets { getByName("main") { res.srcDir(brandOut) } }      // ảnh sinh tự động từ app_logo.png
     lint { checkReleaseBuilds = false; abortOnError = false }
     packaging { resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "DebugProbesKt.bin") }
 }

@@ -95,6 +95,7 @@ fun HomeScreen(
     onScanDead: () -> Unit,
     onToggleAutoFill: () -> Unit,
     onToggleLeveler: () -> Unit,
+    onVolumeLevel: (Int) -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
@@ -284,7 +285,7 @@ fun HomeScreen(
         }
     }
 
-    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToggleLeveler, onToken, onCheckToken, onDiscover, onClearFound, onRestore)
+    if (showSettings) SettingsDialog(ui, { showSettings = false }, onAddSource, onRemoveSource, onToggleBuiltIn, onToggleExtras, onScan, onScanDead, onToggleAutoFill, onToggleLeveler, onVolumeLevel, onToken, onCheckToken, onDiscover, onClearFound, onRestore)
 
     menuFor?.let { c ->
         ChannelMenu(
@@ -821,6 +822,7 @@ private fun SettingsDialog(
     onScanDead: () -> Unit,
     onToggleAutoFill: () -> Unit,
     onToggleLeveler: () -> Unit,
+    onVolumeLevel: (Int) -> Unit,
     onToken: (String) -> Unit,
     onCheckToken: () -> Unit,
     onDiscover: () -> Unit,
@@ -852,6 +854,16 @@ private fun SettingsDialog(
                 }
                 SettingRow("Cân bằng âm lượng giữa các kênh") {
                     Pill(if (ui.leveler) "BẬT" else "TẮT", ui.leveler, small = true, onClick = onToggleLeveler)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Mức âm lượng chuẩn: ${Leveler.names.getOrElse(ui.volumeLevel - 1) { "" }}", color = White, fontSize = 15.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Leveler.names.take(3).forEachIndexed { i, n -> Pill(n, ui.volumeLevel == i + 1, small = true) { onVolumeLevel(i + 1) } }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Leveler.names.drop(3).forEachIndexed { i, n -> Pill(n, ui.volumeLevel == i + 4, small = true) { onVolumeLevel(i + 4) } }
+                    }
+                    Text("Cực đại: to nhất mà còn khá sạch. Hết cỡ: to hơn nữa nhưng bắt đầu rè.", color = Muted, fontSize = 12.sp)
                 }
                 val appCtx = LocalContext.current
                 var crash by remember { mutableStateOf(CrashLog.summary(appCtx)) }

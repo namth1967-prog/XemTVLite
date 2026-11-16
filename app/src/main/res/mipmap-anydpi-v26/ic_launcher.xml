@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Icon lấy từ app/branding/app_logo.png: lớp trước và màu nền brand_bg do tác vụ generateBrand sinh ra -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/icon_bg"/>
-    <foreground android:drawable="@drawable/ic_fg"/>
+    <background android:drawable="@color/brand_bg"/>
+    <foreground android:drawable="@drawable/ic_launcher_fg"/>
 </adaptive-icon>
