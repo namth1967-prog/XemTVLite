@@ -710,7 +710,7 @@ class Repo(context: Context) {
      * nếu có dấu vân tay mới. Trả danh sách mới (đã lưu ảnh chụp) hoặc null nếu không có gì thay đổi.
      */
     suspend fun refineWithLogos(): List<Channel>? = withContext(Dispatchers.IO) {
-        val todo = pendingLogos.filter { it !in logoHash && it !in logoBad }.take(300)
+        val todo = pendingLogos.filter { !logoHash.containsKey(it) && it !in logoBad }.take(300)
         if (todo.isEmpty()) return@withContext null
         val sem = Semaphore(6)
         val before = logoHash.size
