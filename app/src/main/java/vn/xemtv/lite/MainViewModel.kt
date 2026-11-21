@@ -21,7 +21,6 @@ data class UiState(
     val loading: Boolean = true,
     val all: List<Channel> = emptyList(),
     val favorites: Set<String> = emptySet(),
-    val query: String = "",
     val group: String = "",          // "" = tất cả, FAV = yêu thích, còn lại = tên nhóm
     val error: String? = null,
     val sources: List<Source> = emptyList(),
@@ -62,7 +61,7 @@ data class UiState(
      * Kênh có ít nhất 1 link ĐÃ kiểm tra và chạy được, bỏ kênh đã xoá, áp dụng nhóm đã di chuyển.
      * Nhóm do bạn tự thêm thì hiện NGAY khi nạp xong (không chờ kiểm tra), chỉ ẩn khi mọi link đều đã kiểm tra là chết.
      */
-    val alive: List<Channel> = run {
+    val alive: List<Channel> by lazy {
         val byId = all.associateBy { it.id }
         // Gộp thủ công: kênh bị gộp biến mất, mọi link của nó được nhập vào kênh đích
         fun root(id: String): String {
@@ -132,6 +131,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
     private var scanJob: Job? = null
+    private var loadJob: Job? = null
+    private val scanGen = AtomicInteger(0)      // số thứ tự lượt quét hiện tại (lượt quét cũ bị huỷ không được ghi đè tiến độ lượt mới)
     private var discoverJob: Job? = null
     private var noticeJob: Job? = null
 
@@ -157,7 +158,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * [onFetched]: gọi khi đã nạp xong toàn bộ danh sách (để báo số kênh/link mới).
      */
     fun load(manual: Boolean = false, label2: String? = null, onFetched: ((List<Channel>) -> Unit)? = null) {
-        viewModelScope.launch {
+        loadJob?.cancel()      // lượt nạp cũ (nếu còn chạy) bị thay thế, không được ghi đè kết quả của lượt mới
+        loadJob = viewModelScope.launch {
             val before = _ui.value.all.size
             if (manual) showNotice("Đang tải lại danh sách nguồn…")
             _ui.update { it.copy(loading = true, error = null) }
@@ -175,6 +177,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     showNotice("Đã tải lại: ${fresh.size} kênh trong danh sách" + (if (dc > 0) ", thêm $dc kênh mới" else "") + ". Đang thử lại các kênh chưa chạy được…")
                 }
                 onFetched?.invoke(fresh)
+                // Nhận biết logo theo hình ảnh (chạy nền): có dấu vân tay logo mới thì gộp lại danh sách. Bị huỷ cùng lượt nạp này.
+                launch {
+                    try {
+                        repo.refineWithLogos()?.let { merged -> _ui.update { it.copy(all = merged) } }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e      // bị lượt nạp mới thay thế: dừng im lặng, không báo lỗi
             } catch (e: Exception) {
                 if (manual) showNotice("Không tải lại được: ${e.message}")
                 _ui.update {
@@ -190,7 +203,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setQuery(q: String) = _ui.update { it.copy(query = q) }
     fun setGroup(g: String) = _ui.update { it.copy(group = g) }
 
     fun toggleFav(c: Channel) {
@@ -485,6 +497,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun runScan(targets: List<Channel>, label: String) {
+        val gen = scanGen.incrementAndGet()
         val deletedLinks = _ui.value.deletedLinks
         _ui.update { it.copy(scanTotal = targets.size, scanDone = 0, scanLabel = label) }
         val h = repo.health
@@ -494,11 +507,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val retryLater = java.util.concurrent.ConcurrentLinkedQueue<String>()
         fun push(finished: Boolean) {
             h.save()
+            val current = scanGen.get() == gen      // đã có lượt quét mới hơn thì chỉ cập nhật kết quả link, không đụng tiến độ
             _ui.update {
-                it.copy(
+                if (current) it.copy(
                     ok = h.ok(), dead = h.dead(),
                     scanDone = done.get(), scanTotal = if (finished) 0 else it.scanTotal,
-                )
+                ) else it.copy(ok = h.ok(), dead = h.dead())
             }
         }
         // Cập nhật giao diện tối đa ~1 lần/giây: cập nhật dồn dập làm TV box giật và tốn công ghi dữ liệu
@@ -521,7 +535,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 var sc = prober.probe(u)
                                 if (sc == 0) { delay(1_500); sc = prober.probe(u) }   // đo lại sau 1,5 s để không loại oan link chập chờn
                                 if (sc > 0) { h.succeed(u, sc, prober.heightOf(u)); good++; if (good >= 2) break }
-                                else if (sc == HARD_DEAD) h.kill(u)      // 404 / sai tên miền / từ chối kết nối: chết thật
+                                else if (sc == HARD_DEAD) h.kill(u)      // 404 / 410: chết thật (lỗi DNS, 403, 429... chỉ coi là chập chờn, đo lại ở lượt 2)
                                 else retryLater.add(u)                   // chậm hoặc ngắt quãng: đo lại ở lượt 2
                             }
                             done.incrementAndGet()

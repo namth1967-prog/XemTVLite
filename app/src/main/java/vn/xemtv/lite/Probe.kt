@@ -25,6 +25,9 @@ private val AUDIO_TYPES = setOf(0x03, 0x04, 0x0F, 0x11, 0x81, 0x82, 0x83, 0x84, 
 private val VIDEO_TYPES = setOf(0x01, 0x02, 0x10, 0x1B, 0x24, 0x42, 0xD1)
 private val VIDEO_CODECS = listOf("avc", "hvc", "hev", "mp4v", "vp0", "vp9", "av01", "dvh")
 private val AUDIO_CODECS = listOf("mp4a", "ac-3", "ec-3", "opus", "mp3", "flac", "ac-4")
+private val CODECS_RE = Regex("CODECS=\"([^\"]*)\"")
+private val BANDWIDTH_RE = Regex("BANDWIDTH=(\\d+)")
+private val TS_URL_RE = Regex("""\.ts(?:$|[?#])""", RegexOption.IGNORE_CASE)
 
 /** Đọc bảng PMT của luồng MPEG-TS, trả về các loại stream (video/audio…). null = không đọc được. */
 fun tsStreamTypes(d: ByteArray): Set<Int>? {
@@ -93,7 +96,7 @@ class Prober {
     /** Độ phân giải (chiều cao, VD 720/1080) lần đo gần nhất; 0 = chưa biết. */
     fun heightOf(url: String): Int = heights[url] ?: 0
 
-    private val client = OkHttpClient.Builder()
+    private val client = Http.base.newBuilder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(6, TimeUnit.SECONDS)
         .callTimeout(10, TimeUnit.SECONDS)
@@ -129,12 +132,12 @@ class Prober {
 
     private fun uris(text: String) = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toList()
 
-    /** Đủ dữ liệu video và tải đủ nhanh (>= ~100 KB/s) thì mới coi là chạy được. */
+    /** Đủ dữ liệu video và tải đủ nhanh (>= ~60 KB/s, đã tính cả thời gian kết nối) thì mới coi là chạy được. */
     private fun healthy(r: Resp): Boolean {
         if (r.code !in 200..299 || looksHtml(r)) return false
-        if (r.body.size < 30_000) return false
+        if (r.body.size < 20_000) return false
         val bytesPerSec = r.body.size * 1000L / maxOf(r.ms, 1L)
-        return bytesPerSec >= 100_000
+        return bytesPerSec >= 60_000
     }
 
     /** Điểm chất lượng = tốc độ tải đoạn video (KB/s, tối đa 4000) + băng thông khai báo (tối đa 500). */
@@ -147,7 +150,7 @@ class Prober {
     fun probe(url: String, ctl: ProbeCtl = ProbeCtl()): Int {
         try {
             val r = get(url, 128 * 1024, ctl)
-            if (r.code in 400..499) return HARD_DEAD
+            if (r.code == 404 || r.code == 410) return HARD_DEAD      // 403/429... có thể chỉ là chặn tạm: không kết luận chết
             if (r.code !in 200..299 || r.body.isEmpty()) return 0
             val text = String(r.body, Charsets.UTF_8)
             if (!text.trimStart().startsWith("#EXTM3U")) {
@@ -157,13 +160,15 @@ class Prober {
             var media = text
             var base = r.finalUrl
             var bandwidth = 0L
+            var declaredNoAudio = false
             if (text.contains("#EXT-X-STREAM-INF")) {
                 // Danh sách chất lượng khai báo toàn video (không có codec âm thanh, không có nhóm audio riêng) -> không có tiếng
                 val info = text.lineSequence().firstOrNull { it.startsWith("#EXT-X-STREAM-INF") }.orEmpty()
-                val codecs = Regex("CODECS=\"([^\"]*)\"").find(info)?.groupValues?.get(1)?.lowercase().orEmpty()
-                if (codecs.isNotEmpty() && AUDIO_CODECS.none { codecs.contains(it) } && !text.contains("TYPE=AUDIO")) return 0
+                val codecs = CODECS_RE.find(info)?.groupValues?.get(1)?.lowercase().orEmpty()
+                // (khai báo CODECS hay sai: nếu đọc được luồng TS thật thì tin luồng thật, xem bên dưới)
+                declaredNoAudio = codecs.isNotEmpty() && AUDIO_CODECS.none { codecs.contains(it) } && !text.contains("TYPE=AUDIO")
                 if (codecs.isNotEmpty() && VIDEO_CODECS.none { codecs.contains(it) }) return 0   // chỉ có âm thanh
-                bandwidth = Regex("BANDWIDTH=(\\d+)").findAll(text).maxOfOrNull { it.groupValues[1].toLongOrNull() ?: 0L } ?: 0L
+                bandwidth = BANDWIDTH_RE.findAll(text).maxOfOrNull { it.groupValues[1].toLongOrNull() ?: 0L } ?: 0L
                 val hMax = resRe.findAll(text).maxOfOrNull { it.groupValues[1].toIntOrNull() ?: 0 } ?: 0
                 if (hMax > 0) heights[url] = hMax
                 val variantUrl = uris(text).firstOrNull()?.let { resolve(base, it) } ?: return 0
@@ -175,17 +180,14 @@ class Prober {
             }
             val segUrl = uris(media).lastOrNull()?.let { resolve(base, it) } ?: return 0
             val s = get(segUrl, 200_000, ctl)
-            if (Regex("""\.ts(?:$|[?#])""", RegexOption.IGNORE_CASE).containsMatchIn(segUrl) && !media.contains("#EXT-X-KEY") && s.body.isNotEmpty() && s.body[0] != 0x47.toByte()) return 0
+            if (TS_URL_RE.containsMatchIn(segUrl) && !media.contains("#EXT-X-KEY") && s.body.isNotEmpty() && s.body[0] != 0x47.toByte()) return 0
             if (!healthy(s)) return 0
             // Luồng TS có video nhưng không có audio -> coi là chết
             val types = tsStreamTypes(s.body)
-            if (types != null && (types.none { it in AUDIO_TYPES } || types.none { it in VIDEO_TYPES })) return 0
+            if (types != null) { if (types.none { it in AUDIO_TYPES } || types.none { it in VIDEO_TYPES }) return 0 }
+            else if (declaredNoAudio) return 0
             return scoreOf(s, bandwidth)
-        } catch (e: java.net.UnknownHostException) {
-            return if (ctl.stopped) -1 else HARD_DEAD
-        } catch (e: java.net.ConnectException) {
-            return if (ctl.stopped) -1 else HARD_DEAD
-        } catch (e: Exception) {
+        } catch (e: Exception) {      // kể cả lỗi DNS / từ chối kết nối: có thể chỉ thoáng qua, để vòng đo lại quyết định
             return if (ctl.stopped) -1 else 0
         }
     }
@@ -194,7 +196,7 @@ class Prober {
      * Đo song song các link: chờ link đầu tiên chạy được, cho thêm [graceMs] để các link khác kịp đo,
      * rồi hủy phần còn lại. Trả về url -> điểm (0 = lỗi). Link chưa kịp đo thì không có trong kết quả.
      */
-    suspend fun measure(urls: List<String>, graceMs: Long = 2_000): Map<String, Int> {
+    suspend fun measure(urls: List<String>, graceMs: Long = 2_000, maxWaitMs: Long = 7_000): Map<String, Int> {
         if (urls.isEmpty()) return emptyMap()
         return withContext(Dispatchers.IO) {
             val ctl = ProbeCtl()
@@ -211,7 +213,7 @@ class Prober {
                             if (left.decrementAndGet() == 0) first.complete(Unit)
                         }
                     }
-                    first.await()
+                    withTimeoutOrNull(maxWaitMs) { first.await() }      // chưa link nào đo xong sau ~7 s: cứ vào phát, không bắt đợi tiếp
                     withTimeoutOrNull(graceMs) { jobs.joinAll() }
                     ctl.stop()
                 }

@@ -7,13 +7,16 @@ plugins {
 // ===== MỘT ẢNH PNG DUY NHẤT -> banner, icon, màn hình chào =====
 // Mỗi lần build, tác vụ generateBrand chạy branding/BrandGen.java để sinh banner, icon và ảnh màn hình chào
 // từ file app/branding/app_logo.png vào build/generated/brand/res. Muốn đổi tất cả: chỉ cần thay file PNG đó.
+// (Tuỳ chọn) app/branding/app_icon.png: nếu có, ảnh này chỉ dùng cho icon launcher (ảnh vuông, chỉ phần logo) - hợp với ảnh app_logo.png dạng ngang.
 val brandSrc = file("branding/app_logo.png")
 val brandGen = file("branding/BrandGen.java")
+val brandIcon = fileTree("branding") { include("app_icon.png") }      // tuỳ chọn: ảnh riêng cho icon
 val brandOut = layout.buildDirectory.dir("generated/brand/res")
 
 val generateBrand = tasks.register<Exec>("generateBrand") {
     inputs.file(brandSrc)
     inputs.file(brandGen)
+    inputs.files(brandIcon)
     outputs.dir(brandOut)
     commandLine(
         File(System.getProperty("java.home"), "bin/java").path,
@@ -21,7 +24,22 @@ val generateBrand = tasks.register<Exec>("generateBrand") {
         brandGen.path, brandSrc.path, brandOut.get().asFile.path,
     )
 }
-tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(generateBrand) }
+
+// Bản cũ (4.0 trở xuống) để sẵn banner/icon trong thư mục res. Giải nén bản mới đè lên KHÔNG xoá các file đó nên gây lỗi
+// "Duplicate resources". Tác vụ này chạy trước mỗi lần build và tự xoá chúng (không có đầu vào/đầu ra nên luôn chạy).
+val cleanOldBrandRes = tasks.register("cleanOldBrandRes") {
+    doLast {
+        listOf(
+            "src/main/res/drawable-nodpi/banner.png",
+            "src/main/res/drawable/banner.xml",
+            "src/main/res/drawable/ic_fg.xml",
+        ).forEach { path ->
+            val f = file(path)
+            if (f.exists() && f.delete()) println("Da xoa file banner/icon cu (trung voi anh tu sinh): $path")
+        }
+    }
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(cleanOldBrandRes, generateBrand) }
 
 android {
     namespace = "vn.xemtv.lite"
@@ -31,8 +49,8 @@ android {
         applicationId = "vn.xemtv.lite"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
-        versionName = "4.1"
+        versionCode = 38
+        versionName = "4.7"
         resourceConfigurations += listOf("vi", "en")
     }
 

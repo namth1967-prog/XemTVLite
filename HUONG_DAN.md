@@ -99,11 +99,43 @@ Giữ OK trên một kênh để mở menu, nay có thêm:
 
 - **Logo từ `logos.txt`**: khớp theo tên kênh, kể cả khi tên trong file chỉ là phần đầu (VD dòng `VTV3|…` áp cho "VTV3 Thể thao"). **Cài đặt** cho biết khớp bao nhiêu dòng, dòng nào không khớp kênh nào, và logo nào tải lỗi (kèm tên máy chủ + lý do). App đọc được cả logo dạng SVG.
 
+## Bản 4.2
+
+- Sửa lỗi build "Duplicate resources … banner.png" khi nâng cấp từ bản cũ: build tự xoá các file banner/icon cũ trong `res` trước mỗi lần chạy.
+
 ## Bản 4.1: một ảnh PNG cho banner, icon và màn hình chào
 
 - Chỉ cần **một file ảnh**: `app/branding/app_logo.png` (ảnh vuông, khuyến nghị từ 512×512 trở lên). Mỗi lần build, app tự sinh từ file đó: **banner** Android TV (16:9), **icon** ứng dụng và **màn hình chào** (hiện khoảng 1,6 giây khi mở app).
 - Muốn đổi: thay file `app_logo.png` bằng ảnh mới (giữ nguyên tên) rồi build lại. Màu nền của banner/icon/màn hình chào tự lấy từ 4 góc ảnh, nên nên dùng ảnh có nền đồng màu ở các góc.
 - **Mức âm lượng chuẩn** trong Cài đặt: Vừa / To / Rất to / Tối đa / Cực đại / Hết cỡ (mặc định **Cực đại**). Số liệu mô phỏng: tiếng thực tế thấp hơn mức "đích" khoảng 2–4 dB; Cực đại là to nhất còn khá sạch, Hết cỡ to hơn nữa nhưng bắt đầu rè. Âm lượng của TV/box vẫn do bạn chỉnh bằng remote, app chỉ làm tiếng của các kênh to đều và to hơn.
+
+## Bản 4.5: gộp kênh địa phương viết tắt + icon mới
+
+- Nhiều đài địa phương bị tách thành nhiều kênh vì mỗi danh sách ghi một kiểu (`Cà Mau TV` / `CTV - TH Cà Mau` / `CTV`; `Cần Thơ 1` / `TH Cần Thơ 1` / `THTPCT1`). Nay app tự gộp khi có **bằng chứng**: (1) tên có tên tỉnh + cùng số kênh và **cùng logo**; hoặc (2) tên dạng **TH + chữ cái đầu của tỉnh** (THCT, THCM, THDT, THTPCT1…). Mọi link được giữ lại (tối đa 12).
+- Trường hợp mơ hồ thì **không gộp** để tránh phát nhầm kênh: chữ viết tắt hợp nhiều tỉnh (HN = Hà Nội/Hà Nam, BD = Bình Dương/Bình Định), logo dùng chung cho nhiều tỉnh, `Cần Thơ 1` ≠ `Cần Thơ 2`, `VTV Cần Thơ`, `Bình Dương Phim`… Nếu vẫn còn kênh trùng, dùng chức năng **Gộp kênh** thủ công như trước.
+- Logo chỉ được coi là "cùng" khi trùng đường dẫn (không phân biệt http/https, www, `?tham-số`) hoặc trùng tên file đặc trưng (vd `camau.png`). Hai logo giống hệt nhau về hình nhưng khác link thì app không nhận ra được.
+- Ảnh: thêm `app/branding/app_icon.png` (ảnh vuông chỉ có phần tivi, nền phẳng) **chỉ dùng cho icon** ứng dụng; banner và màn hình chào vẫn lấy từ `app_logo.png`. Không có file này thì icon dùng `app_logo.png` như cũ. `app_logo.png` đã được xoá dấu sao nhỏ ở góc dưới bên phải.
+
+## Bản 4.7
+
+- **Sửa lỗi "kênh sống nhưng báo không mở được":** lỗi mạng thoáng qua không còn làm app bỏ link ngay (tự thử lại đúng link đó tối đa 3 lần); link HLS không có đuôi `.m3u8` được đọc lại đúng dạng; máy chủ chặn (401/403) được thử lại với tên trình phát khác.
+- Nếu vẫn báo "Chưa mở được kênh": app tự thử lại tối đa 3 lần, hoặc bấm **OK** để thử lại ngay. Link cuối cùng của kênh không còn bị bỏ chỉ vì thiếu tiếng.
+- Phần đo link bớt khắt khe (403, lỗi DNS thoáng qua không còn bị coi là chết hẳn), nên ít kênh bị ẩn oan hơn.
+
+## Bản 4.6
+
+- **Gộp kênh địa phương chính xác hơn.** Cùng tỉnh + cùng số kênh + chữ viết tắt hợp với tên tỉnh thì gộp, không cần logo (Cà Mau TV = CTV - TH Cà Mau; Cần Thơ 1 = TH Cần Thơ 1 = THTPCT1).
+- **Nhận biết logo theo hình ảnh:** hai link logo khác nhau nhưng cùng hình vẫn được tính là cùng logo. App tải logo ở chế độ nền (mỗi logo một lần), xong thì tự gộp lại danh sách; sau lần nạp đầu tiên có thể thấy danh sách gọn lại sau vài chục giây.
+- Tên viết tắt trơn không có tên tỉnh (như "CTV") chỉ được gộp khi cùng logo (cùng link hoặc cùng hình) với kênh của tỉnh; không có bằng chứng thì giữ riêng cho an toàn.
+
+## Bản 4.4
+
+- Tối ưu thêm, **không đổi chức năng**: nạp danh sách không còn bị lượt cũ ghi đè khi bạn bấm **Tải lại** / thêm-xoá nhóm lúc đang nạp; gộp kênh trùng nhanh hơn; nguồn tự tìm đã bỏ được xoá file lưu cho đỡ chiếm dung lượng; dùng chung một bộ kết nối mạng.
+- Ảnh `app/branding/app_logo.png` đổi sang ảnh **Lê Thu TV** mới (ảnh ngang 16:9). Banner, icon và màn hình chào tự sinh lại từ ảnh này khi build.
+
+## Bản 4.3
+
+- Rà soát mã nguồn, **không đổi chức năng**: nhẹ CPU hơn khi đang kiểm tra kênh, và sửa lỗi dòng tiến độ kiểm tra biến mất sớm nếu bạn bấm **Tải lại** hoặc đổi nguồn lúc đang quét.
 
 ## Vì sao nhẹ và mượt
 

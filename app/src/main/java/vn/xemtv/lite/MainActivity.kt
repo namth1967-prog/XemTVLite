@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         Coil.setImageLoader(
             ImageLoader.Builder(this)
                 .okHttpClient {
-                    OkHttpClient.Builder()
+                    Http.base.newBuilder()
                         .connectTimeout(10, TimeUnit.SECONDS)
                         .readTimeout(15, TimeUnit.SECONDS)
                         .addInterceptor { chain ->
@@ -136,7 +136,6 @@ private fun App(vm: MainViewModel = viewModel()) {
             heightOf = vm::linkHeight,
             onHeight = vm::reportHeight,
             onCurrent = { lastPlayed = it.id },
-            onExit = { playIndex = -1 },
         )
     } else {
         HomeScreen(

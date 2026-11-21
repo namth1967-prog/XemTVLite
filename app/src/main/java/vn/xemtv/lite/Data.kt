@@ -16,6 +16,11 @@ import java.io.File
 import java.text.Normalizer
 import java.util.concurrent.TimeUnit
 
+/** MỘT OkHttpClient dùng chung (chung nhóm kết nối và luồng); mỗi nơi dùng chỉnh thời gian chờ riêng qua newBuilder(). */
+object Http {
+    val base: OkHttpClient = OkHttpClient()
+}
+
 // Các danh sách công khai (iptv-org, Free-TV). Mỗi kênh có thể có link ở nhiều danh sách -> dùng làm link dự phòng.
 val BUILT_IN_URLS = listOf(
     "https://iptv-org.github.io/iptv/countries/vn.m3u",
@@ -194,6 +199,85 @@ private fun dedupeKeyRaw(name: String): String {
     }
     if (toks.size == 2 && toks[1] == "1" && toks[0] in PROV_COMPACT) toks = listOf(toks[0])   // "cantho 1" = "cantho"
     return toks.joinToString(" ")
+}
+
+// ---------- Gộp kênh địa phương viết tắt ----------
+// Cùng một đài nhưng mỗi danh sách ghi một kiểu: "Cà Mau TV" / "CTV - TH Cà Mau" / "CTV"; "Cần Thơ 1" / "TH Cần Thơ 1" / "THTPCT1".
+// Viết tắt không theo quy luật nên chỉ gộp khi có BẰNG CHỨNG (xem Repo.mergeLocalAliases):
+//   - tên có tỉnh + cùng số kênh, và cùng logo (bỏ qua logo dùng chung chung); hoặc
+//   - tên dạng "TH + chữ cái đầu của tỉnh" (THCT, THTPCT1...) khớp đúng một kênh của tỉnh đó.
+private val LOCAL_NOISE = setOf("th", "tp")                       // "TH Cần Thơ 1" = "Cần Thơ 1"
+private val BRAND_TOKENS = setOf("vtv", "vtc", "htv", "htvc", "sctv", "thvl", "vov", "antv", "qpvn", "tvb", "hbo", "cnn", "bbc", "nhk", "kbs", "mbc", "sbs", "tvn")
+private val GENERIC_LOGO = setOf("logo", "icon", "image", "images", "default", "noimage", "placeholder", "thumbnail", "avatar", "blank",
+    "channel", "favicon", "banner", "poster", "cover", "nologo", "tvlogo", "default_logo", "no_logo", "no-logo", "tv", "kenh")
+private val RX_ONLY_LETTERS = Regex("^[a-z]+\$")
+private val RX_LETTERS_NUM = Regex("^([a-z]+)(\\d+)\$")
+private val RX_TH_PREFIX = Regex("^(?:thtp|ptth|th|tp)+")
+
+private fun hasVowel(s: String) = s.any { it in "aeiouy" }
+/** Viết tắt: 2-8 chữ cái, không nguyên âm (ctv, thtpct, hntv), không phải thương hiệu lớn (vtv, htv...). */
+private fun isAbbr(t: String) = t.length in 2..8 && RX_ONLY_LETTERS.matches(t) && !hasVowel(t) && t !in BRAND_TOKENS
+
+/** Chữ cái đầu của tên tỉnh (cantho -> "ct"). Chỉ giữ khi duy nhất và không có nguyên âm (loại "hn", "bd"... trùng nhiều tỉnh). */
+private val PROV_BY_INITIALS: Map<String, String> = run {
+    val m = HashMap<String, MutableSet<String>>()
+    for (p in PROVINCES) {
+        val ws = p.split(' ')
+        if (ws.size >= 2) m.getOrPut(ws.joinToString("") { it.substring(0, 1) }) { HashSet() }.add(p.replace(" ", ""))
+    }
+    m.filter { (k, v) -> v.size == 1 && k.length >= 2 && !hasVowel(k) }.mapValues { it.value.first() }
+}
+
+/** Chữ viết tắt [t] có hợp với tỉnh [province] (viết liền, không dấu) không: bỏ "th/tp" và "tv/rtv/rt", phần còn lại phải bắt đầu bằng chữ cái đầu của tỉnh và là dãy con của tên tỉnh. */
+private fun abbrFits(t: String, province: String): Boolean {
+    var s = t.replace(RX_TH_PREFIX, "")
+    for (suf in listOf("rtv", "tv", "rt")) if (s.length > suf.length && s.endsWith(suf)) { s = s.dropLast(suf.length); break }
+    if (s.isEmpty() || province.isEmpty() || s[0] != province[0]) return false
+    var k = 0
+    for (ch in province) if (k < s.length && ch == s[k]) k++
+    return k == s.length
+}
+
+/** Phân tích tên kênh: tỉnh, số kênh (mặc định 1), từ thường (phim, plus...), từ viết tắt. */
+private class LocalInfo(val prov: Set<String>, val num: Int, val words: List<String>, val abbr: List<String>, val initProv: String?)
+
+private fun localInfo(name: String): LocalInfo {
+    val prov = LinkedHashSet<String>()
+    val words = ArrayList<String>()
+    val abbr = ArrayList<String>()
+    var num = -1
+    for (t in dedupeKey(name).split(' ')) {
+        if (t.isEmpty() || t in LOCAL_NOISE) continue
+        val m = RX_LETTERS_NUM.matchEntire(t)
+        when {
+            t in PROV_COMPACT -> prov.add(t)
+            t.all { it.isDigit() } -> num = t.toIntOrNull() ?: 0
+            m != null && isAbbr(m.groupValues[1]) -> { abbr.add(m.groupValues[1]); num = m.groupValues[2].toIntOrNull() ?: 0 }
+            isAbbr(t) -> abbr.add(t)
+            else -> words.add(t)
+        }
+    }
+    var ini: String? = null
+    if (prov.isEmpty() && words.isEmpty() && abbr.size == 1) {
+        val rest = abbr[0].replace(RX_TH_PREFIX, "")
+        if (rest != abbr[0] && rest.length >= 2) ini = PROV_BY_INITIALS[rest]       // THCT -> "ct" -> cantho
+    }
+    return LocalInfo(prov, if (num < 0) 1 else num, words, abbr, ini)
+}
+
+/** Dấu hiệu nhận biết logo: đường dẫn đầy đủ (bỏ http/https, www, ?query) và tên file (khi tên file đủ đặc trưng). Logo chung chung -> không có dấu hiệu. */
+private fun logoSignals(logo: String): List<String> {
+    var u = logo.trim().lowercase()
+    if (u.isEmpty()) return emptyList()
+    u = u.substringBefore('#').substringBefore('?').removePrefix("https://").removePrefix("http://").removePrefix("www.")
+    val file = u.substringAfterLast('/')
+    val stem = if (file.contains('.')) file.substringBeforeLast('.') else file
+    val generic = stem in GENERIC_LOGO
+    if (generic && u.count { it == '/' } < 2) return emptyList()      // vd "host/logo.png": logo chung chung
+    val out = ArrayList<String>(2)
+    out.add("f:$u")
+    if (stem.length >= 4 && stem.any { it.isLetter() } && !generic) out.add("s:$stem")
+    return out
 }
 
 private fun hasAccent(s: String) = fold(s) != s.lowercase()
@@ -375,8 +459,6 @@ class Health(private val prefs: android.content.SharedPreferences, private val k
         val o = m[url] ?: return
         if (o.score > 0) m[url] = Stat(maxOf(1, o.score / 2), o.fails, o.height)
     }
-    /** Lỗi 1 lần (khi đang xem hoặc đo nhanh). */
-    fun fail(url: String) { val o = m[url]; m[url] = Stat(o?.score ?: 0, (o?.fails ?: 0) + 1, o?.height ?: 0) }
     /** Đã đo lại chắc chắn là chết. */
     fun kill(url: String) { m[url] = Stat(0, DEAD_AFTER, m[url]?.height ?: 0) }
 
@@ -391,7 +473,7 @@ class Repo(context: Context) {
     private val ctx = context.applicationContext
     private val prefs = ctx.getSharedPreferences("xemtv", Context.MODE_PRIVATE)
     private val dir = ctx.filesDir
-    private val client = OkHttpClient.Builder()
+    private val client = Http.base.newBuilder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(40, TimeUnit.SECONDS)
@@ -434,7 +516,15 @@ class Repo(context: Context) {
             val a = JSONArray(prefs.getString("found", "[]"))
             (0 until a.length()).map { a.getString(it) }
         } catch (e: Exception) { emptyList() }
-        set(v) { prefs.edit().putString("found", JSONArray(v).toString()).apply() }
+        set(v) {
+            // Nguồn tự tìm bị bỏ khỏi danh sách (quá 200 nguồn, nguồn chết, "Xóa nguồn tìm được"): xoá luôn file đã lưu của nó cho đỡ chiếm dung lượng.
+            // Không xoá file của nguồn có sẵn / nguồn do bạn thêm (nếu trùng link).
+            val keep = HashSet<String>().apply {
+                addAll(v); addAll(BUILT_IN_URLS); addAll(sources.map { it.url }); addAll(EXTRA_SOURCES.map { it.url })
+            }
+            (found - keep).forEach { File(dir, "src_${it.hashCode()}.m3u").delete() }
+            prefs.edit().putString("found", JSONArray(v).toString()).apply()
+        }
 
     var favorites: Set<String>
         get() = (prefs.getStringSet("fav2", emptySet()) ?: emptySet()).map { id ->
@@ -512,6 +602,128 @@ class Repo(context: Context) {
 
     private fun logoIndexFile() = File(dir, "logo_index.json")
     private val logoExt = Regex(".*\\.(png|jpg|jpeg|webp)$", RegexOption.IGNORE_CASE)
+
+    // ----- Nhận biết logo theo HÌNH ẢNH -----
+    // Cùng một đài nhưng mỗi danh sách dùng một link logo khác nhau (hình giống nhau): tải logo, tính "dấu vân tay" 64-bit (dHash).
+    // Hai logo có dấu vân tay gần giống nhau được coi là CÙNG HÌNH và làm bằng chứng gộp kênh địa phương (xem mergeLocalAliases).
+    // Dấu vân tay lưu trong logo_hash.json nên mỗi logo chỉ tải một lần.
+    private fun logoHashFile() = File(dir, "logo_hash.json")
+    private val logoHash = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val logoBad: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()        // logo không đọc được (404, SVG, quá nặng): không thử lại
+    private val pendingLogos: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()   // logo kênh địa phương/viết tắt mà lần gộp gần nhất muốn có dấu vân tay
+    private val logoClient = Http.base.newBuilder()
+        .connectTimeout(5, TimeUnit.SECONDS).readTimeout(6, TimeUnit.SECONDS).callTimeout(8, TimeUnit.SECONDS).build()
+
+    init {
+        try {
+            val f = logoHashFile()
+            if (f.exists()) {
+                val o = JSONObject(f.readText())
+                o.optJSONObject("h")?.let { h -> h.keys().forEach { k -> logoHash[k] = h.getString(k).toLong() } }
+                o.optJSONArray("x")?.let { x -> for (i in 0 until x.length()) logoBad.add(x.getString(i)) }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun saveLogoHash() {
+        try {
+            val h = JSONObject()
+            for ((k, v) in logoHash) h.put(k, v.toString())
+            logoHashFile().writeText(JSONObject().put("h", h).put("x", JSONArray(logoBad.toList())).toString())
+        } catch (_: Exception) {}
+    }
+
+    /** Logo đủ chi tiết để so sánh (loại ảnh gần như trơn một màu). */
+    private fun hashInformative(h: Long): Boolean = java.lang.Long.bitCount(h) in 12..52
+
+    /** Gom các link logo có hình giống nhau (dấu vân tay lệch ≤ 3/64 bit: chặt, ưu tiên không gộp nhầm): link -> "i:số nhóm" (số nhóm chỉ có nghĩa trong một lần gộp). */
+    private fun imageSignals(): Map<String, String> {
+        val items = logoHash.entries.filter { hashInformative(it.value) }.map { it.key to it.value }
+        if (items.size < 2) return emptyMap()
+        val parent = IntArray(items.size) { it }
+        fun find(x: Int): Int { var r = x; while (parent[r] != r) r = parent[r]; return r }
+        for (a in 1 until items.size) for (b in 0 until a) {
+            if (java.lang.Long.bitCount(items[a].second xor items[b].second) <= 3) {
+                val ra = find(a)
+                val rb = find(b)
+                if (ra != rb) parent[ra] = rb
+            }
+        }
+        val out = HashMap<String, String>(items.size)
+        for (k in items.indices) out[items[k].first] = "i:" + find(k)
+        return out
+    }
+
+    /** dHash 64 bit: đặt ảnh lên nền trắng, thu về lưới 9x8 (độ sáng), mỗi bit = ô bên trái sáng hơn ô bên phải. */
+    private fun dHash(bytes: ByteArray): Long? {
+        val bo = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bo)
+        if (bo.outWidth <= 0 || bo.outHeight <= 0) return null
+        var sample = 1
+        while (bo.outWidth / (sample * 2) >= 72 && bo.outHeight / (sample * 2) >= 72) sample *= 2
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return null
+        val w = 36
+        val h = 32
+        val canvasBmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        try {
+            val cv = android.graphics.Canvas(canvasBmp)
+            cv.drawColor(android.graphics.Color.WHITE)
+            cv.drawBitmap(
+                bmp, android.graphics.Rect(0, 0, bmp.width, bmp.height), android.graphics.Rect(0, 0, w, h),
+                android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG),
+            )
+            val px = IntArray(w * h)
+            canvasBmp.getPixels(px, 0, w, 0, 0, w, h)
+            val g = Array(8) { DoubleArray(9) }
+            for (gy in 0 until 8) for (gx in 0 until 9) {
+                var sum = 0.0
+                for (dy in 0 until 4) for (dx in 0 until 4) {
+                    val p = px[(gy * 4 + dy) * w + gx * 4 + dx]
+                    sum += 0.299 * ((p shr 16) and 0xFF) + 0.587 * ((p shr 8) and 0xFF) + 0.114 * (p and 0xFF)
+                }
+                g[gy][gx] = sum / 16.0
+            }
+            var hash = 0L
+            for (gy in 0 until 8) for (gx in 0 until 8) hash = (hash shl 1) or (if (g[gy][gx] > g[gy][gx + 1]) 1L else 0L)
+            return hash
+        } finally {
+            bmp.recycle()
+            canvasBmp.recycle()
+        }
+    }
+
+    private fun fetchLogoHash(u: String): Long? = try {
+        val req = Request.Builder().url(u)
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 11; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36").build()
+        logoClient.newCall(req).execute().use { r ->
+            when {
+                !r.isSuccessful -> { if (r.code == 404 || r.code == 410) logoBad.add(u); null }
+                (r.body?.contentLength() ?: 0L) > 400_000L -> { logoBad.add(u); null }
+                else -> dHash(r.peekBody(400_000L).bytes()).also { if (it == null) logoBad.add(u) }      // SVG / không phải ảnh bitmap: bỏ
+            }
+        }
+    } catch (e: Exception) { null }
+
+    /**
+     * Tải các logo còn thiếu dấu vân tay (tối đa 300 logo mỗi lần, mỗi logo ≤ 400 KB, 6 logo cùng lúc), rồi gộp lại danh sách
+     * nếu có dấu vân tay mới. Trả danh sách mới (đã lưu ảnh chụp) hoặc null nếu không có gì thay đổi.
+     */
+    suspend fun refineWithLogos(): List<Channel>? = withContext(Dispatchers.IO) {
+        val todo = pendingLogos.filter { it !in logoHash && it !in logoBad }.take(300)
+        if (todo.isEmpty()) return@withContext null
+        val sem = Semaphore(6)
+        val before = logoHash.size
+        try {
+            coroutineScope {
+                todo.map { u -> async { sem.withPermit { fetchLogoHash(u)?.let { logoHash[u] = it } } } }.awaitAll()
+            }
+        } finally {
+            saveLogoHash()
+        }
+        if (logoHash.size == before) return@withContext null
+        merge(allSources().map { s -> s to readCached(s) }).also { saveSnapshot(it) }
+    }
 
     /** Chỉ mục logo tự tìm trên GitHub (kho tv-logos): khoá chuẩn hoá của tên kênh -> link logo. */
     fun logoIndex(): Map<String, String> = try {
@@ -715,11 +927,20 @@ class Repo(context: Context) {
         for ((_, idxs) in nodes.indices.groupBy { nodes[it].pool }) {
             if (idxs.size < 2) continue
             val sorted = idxs.sortedWith(compareBy({ nodes[it].toks.size }, { it }))
+            // Chỉ mục: từ đầu của tên -> các kênh (giữ thứ tự đã sắp). Tên rỗng (không có từ nào) khớp mọi tên nên để riêng.
+            // Kênh a chỉ có thể là "phần đầu" của kênh c khi cùng từ đầu -> chỉ cần xét đúng nhóm đó thay vì quét cả danh sách (O(n²)).
+            val byFirst = HashMap<String, ArrayList<Int>>()
+            val noToks = ArrayList<Int>()
+            for (i in sorted) {
+                val t = nodes[i].toks
+                if (t.isEmpty()) noToks.add(i) else byFirst.getOrPut(t[0]) { ArrayList() }.add(i)
+            }
             for (ci in sorted) {
                 if (gone[ci]) continue
                 val c = nodes[ci]
                 var best = -1
-                for (ai in sorted) {
+                val pools: List<List<Int>> = if (c.toks.isEmpty()) listOf(noToks) else listOf(noToks, byFirst[c.toks[0]].orEmpty())
+                for (cand in pools) for (ai in cand) {
                     if (ai == ci) break                       // đã xếp tăng dần: chỉ xét kênh đứng trước (tên ngắn hơn hoặc trùng khít)
                     if (gone[ai]) continue
                     val a = nodes[ai]
@@ -749,6 +970,121 @@ class Repo(context: Context) {
         return nodes.indices.filter { !gone[it] }.map { nodes[it].ch }
     }
 
+    /**
+     * Gộp kênh địa phương viết tắt (chạy sau dedupeChannels). Chỉ xét kênh thuộc nhóm tự động (không đụng nhóm do người dùng thêm).
+     *  1) Hai kênh CÙNG tỉnh, CÙNG số kênh, không có từ lạ (phim, plus...): gộp nếu khác nhau chỉ vì "TH/TP" ("TH Cần Thơ 1" = "Cần Thơ 1"),
+     *     hoặc cùng logo ("CTV - TH Cà Mau" = "Cà Mau TV").
+     *  2) Tên viết tắt thuần, không có tỉnh ("CTV", "THTPCT1"): gộp vào kênh của tỉnh khi (a) cùng logo và chữ viết tắt hợp với tên tỉnh,
+     *     hoặc (b) dạng "TH + chữ cái đầu của tỉnh" (THCT = Cần Thơ). Phải khớp ĐÚNG MỘT kênh, mơ hồ thì để nguyên.
+     *  Logo chỉ được tính khi đặc trưng: ≤ 6 tên khác nhau dùng chung và chỉ thuộc tối đa 1 tỉnh (logo chung chung bị bỏ qua).
+     * Giữ mọi link (tối đa MAX_LINKS), giữ id yêu thích/đã xoá/đã di chuyển, nhóm ưu tiên cao hơn (Địa phương > Khác).
+     */
+    private fun mergeLocalAliases(input: List<Channel>): List<Channel> {
+        val n = input.size
+        if (n < 2) return input
+        val userIds = favorites + hidden + moved.keys
+        val elig = BooleanArray(n) { groupRank(input[it].group) >= 0 }
+        val info = arrayOfNulls<LocalInfo>(n)
+        val sigs = ArrayList<List<String>>(n)
+        val img = imageSignals()          // link logo -> nhóm hình giống nhau (logo khác link nhưng cùng hình)
+        for (i in 0 until n) {
+            if (elig[i]) {
+                val f = localInfo(input[i].name)
+                info[i] = f
+                val lg = input[i].logo
+                if ((f.prov.isNotEmpty() || f.abbr.isNotEmpty()) && lg.startsWith("http", true) && pendingLogos.size < 2000) pendingLogos.add(lg)
+                sigs.add(logoSignals(lg) + listOfNotNull(img[lg]))
+            } else sigs.add(emptyList())
+        }
+        val bySig = HashMap<String, ArrayList<Int>>()
+        for (i in 0 until n) for (s in sigs[i]) bySig.getOrPut(s) { ArrayList() }.add(i)
+        val specific = HashSet<String>()
+        for ((s, idxs) in bySig) {
+            if (idxs.size < 2) continue
+            val names = idxs.map { dedupeKey(input[it].name) }.toSet().size
+            val provs = idxs.mapNotNull { info[it]?.prov?.takeIf { p -> p.isNotEmpty() } }.toSet().size
+            if (names <= 6 && provs <= 1) specific.add(s)
+        }
+
+        val parent = IntArray(n) { it }
+        fun find(x: Int): Int {
+            var r = x
+            while (parent[r] != r) r = parent[r]
+            var c = x
+            while (parent[c] != r) { val nx = parent[c]; parent[c] = r; c = nx }
+            return r
+        }
+        fun union(a: Int, b: Int) {
+            val ra = find(a)
+            val rb = find(b)
+            if (ra != rb) parent[maxOf(ra, rb)] = minOf(ra, rb)
+        }
+
+        // Bước 1: kênh có tên tỉnh, cùng (tỉnh, số kênh, từ lạ)
+        val byId = HashMap<String, ArrayList<Int>>()
+        for (i in 0 until n) {
+            val f = info[i] ?: continue
+            if (f.prov.isEmpty()) continue
+            byId.getOrPut(f.prov.sorted().joinToString(",") + "|" + f.num + "|" + f.words.joinToString(",")) { ArrayList() }.add(i)
+        }
+        for ((_, idxs) in byId) {
+            for (a in 1 until idxs.size) for (b in 0 until a) {
+                val x = idxs[a]
+                val y = idxs[b]
+                if (find(x) == find(y)) continue
+                val sameCore = info[x]!!.abbr == info[y]!!.abbr
+                val shareLogo = sigs[x].any { it in specific && it in sigs[y] }
+                // Chữ viết tắt trong tên hợp với tên tỉnh ("CTV - TH Cà Mau" ~ Cà Mau): cùng tỉnh + cùng số kênh + cùng từ lạ thì là một kênh
+                val fitsProv = (info[x]!!.abbr + info[y]!!.abbr).all { a -> info[x]!!.prov.any { pv -> abbrFits(a, pv) } }
+                if (sameCore || shareLogo || fitsProv) union(x, y)
+            }
+        }
+
+        // Bước 2: tên viết tắt thuần (không có tỉnh) -> gộp vào kênh của tỉnh nếu chỉ có MỘT ứng viên
+        val provAnchor = HashMap<String, ArrayList<Int>>()
+        for (i in 0 until n) {
+            val f = info[i] ?: continue
+            if (f.prov.size == 1 && f.words.isEmpty()) provAnchor.getOrPut(f.prov.first()) { ArrayList() }.add(i)
+        }
+        for (i in 0 until n) {
+            val f = info[i] ?: continue
+            if (f.prov.isNotEmpty() || f.words.isNotEmpty() || f.abbr.isEmpty() || f.abbr.size > 2) continue
+            val roots = HashSet<Int>()
+            val ip = f.initProv
+            if (ip != null) for (j in provAnchor[ip].orEmpty()) {
+                if (j != i && info[j]!!.num == f.num) roots.add(find(j))
+            }
+            for (s in sigs[i]) if (s in specific) for (j in bySig[s].orEmpty()) {
+                val g = info[j] ?: continue
+                if (j != i && g.prov.isNotEmpty() && g.words.isEmpty() && g.num == f.num &&
+                    f.abbr.all { a -> g.prov.any { pv -> abbrFits(a, pv) } }) roots.add(find(j))
+            }
+            if (roots.size == 1) union(i, roots.first())
+        }
+
+        // Bước 3: dựng kênh gộp
+        val clusters = HashMap<Int, ArrayList<Int>>()
+        for (i in 0 until n) clusters.getOrPut(find(i)) { ArrayList() }.add(i)
+        val out = ArrayList<Channel>(n)
+        for (i in 0 until n) {
+            val mem = clusters[find(i)]!!
+            if (mem.size == 1) { out.add(input[i]); continue }
+            if (mem[0] != i) continue                       // kênh gộp chỉ tạo một lần, tại vị trí thành viên đầu tiên
+            val cs = mem.map { input[it] }
+            val fs = mem.map { info[it]!! }
+            // Tên đại diện: ưu tiên tên có tên tỉnh, không viết tắt, có dấu
+            val best = cs.indices.maxByOrNull { k ->
+                nameScore(cs[k].name) + (if (fs[k].prov.isNotEmpty()) 4 else 0) + (if (fs[k].abbr.isEmpty()) 2 else 0)
+            } ?: 0
+            val rep = cs[best]
+            val group = cs.minByOrNull { groupRank(it.group) }!!.group
+            val id = if (rep.id in userIds) rep.id else (cs.firstOrNull { it.id in userIds }?.id ?: rep.id)
+            val logo = (listOf(rep) + cs).map { it.logo }.firstOrNull { it.isNotBlank() } ?: ""
+            out.add(rep.copy(id = id, group = group, logo = logo, urls = cs.flatMap { it.urls }.distinct().take(MAX_LINKS)))
+        }
+        return out
+    }
+
     private fun merge(parts: List<Pair<Source, List<Entry>>>): List<Channel> {
         val map = LinkedHashMap<String, Channel>()
         val wantedGroup = wantedGroups()
@@ -769,7 +1105,7 @@ class Repo(context: Context) {
             }
         }
         // Gộp kênh trùng còn sót (khác nhóm, hoặc tên này là phần đầu của tên kia) mà vẫn giữ mọi link
-        val deduped = dedupeChannels(map.values.toList())
+        val deduped = mergeLocalAliases(dedupeChannels(map.values.toList()))
         val withLogo = deduped        // logo từ logos.txt / tự đặt / tự tìm được áp dụng lúc hiển thị (xem UiState.alive)
         val (auto, user) = withLogo.partition { it.group in AUTO_GROUPS }
         return auto.sortedBy { natKey(it.name) } + user

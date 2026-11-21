@@ -10,6 +10,8 @@ import java.nio.file.Files;
 /**
  * Generates banner, launcher icon and splash image from ONE png file.
  * Usage: java BrandGen.java <image.png> <output res dir>
+ * Optional: a file "app_icon.png" next to <image.png> is used ONLY for the launcher icon (square, logo only);
+ * banner and splash always come from <image.png>.
  * (Gradle runs it on every build - see task generateBrand in app/build.gradle.kts.)
  */
 public class BrandGen {
@@ -20,10 +22,13 @@ public class BrandGen {
         BufferedImage in = ImageIO.read(srcFile);
         if (in == null) throw new IllegalStateException("Cannot read PNG image: " + srcFile);
 
-        BufferedImage src = new BufferedImage(in.getWidth(), in.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = src.createGraphics();
-        g.drawImage(in, 0, 0, null);
-        g.dispose();
+        BufferedImage src = toArgb(in);
+        BufferedImage iconSrc = src;
+        File iconFile = new File(srcFile.getAbsoluteFile().getParentFile(), "app_icon.png");
+        if (iconFile.isFile()) {
+            BufferedImage ii = ImageIO.read(iconFile);
+            if (ii != null) iconSrc = toArgb(ii);
+        }
 
         deleteDir(out);
         Color bg = sampleBg(src);
@@ -31,7 +36,7 @@ public class BrandGen {
         // 1) Android TV banner 16:9 (960x540): image centered, side background stretched from the image edge (seamless)
         save(banner(src, 960, 540, bg), new File(out, "drawable-nodpi/banner.png"));
         // 2) Adaptive icon: foreground = image shrunk into the safe zone; background = colour sampled from the image corners
-        save(foreground(src, 432, 0.68), new File(out, "drawable-nodpi/ic_launcher_fg.png"));
+        save(foreground(iconSrc, 432, 0.68), new File(out, "drawable-nodpi/ic_launcher_fg.png"));
         // 3) Splash screen image
         save(fit(src, 800), new File(out, "drawable-nodpi/splash_logo.png"));
         // 4) Brand background colour (icon, window background at launch, splash screen)
@@ -41,6 +46,14 @@ public class BrandGen {
         Files.write(colors.toPath(), ("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n    <color name=\"brand_bg\">"
                 + hex + "</color>\n</resources>\n").getBytes(StandardCharsets.UTF_8));
         System.out.println("Generated banner/icon/splash from " + srcFile.getName() + " (background " + hex + ")");
+    }
+
+    static BufferedImage toArgb(BufferedImage in) {
+        BufferedImage out = new BufferedImage(in.getWidth(), in.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = out.createGraphics();
+        g.drawImage(in, 0, 0, null);
+        g.dispose();
+        return out;
     }
 
     /** Background colour = average of the 4 image corners (transparent pixels count as white). */

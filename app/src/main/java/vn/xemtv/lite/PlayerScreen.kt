@@ -25,15 +25,28 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private const val UA_APP = "Mozilla/5.0 (Linux; Android) XemTVLite/1.0"
+private const val UA_VLC = "VLC/3.0.20 LibVLC/3.0.20"        // nhiều máy chủ IPTV chỉ cho trình phát quen thuộc
+// Mã lỗi của trình phát (PlaybackException.ERROR_CODE_*)
+private const val ERR_BEHIND_LIVE = 1002                     // luồng trực tiếp trôi khỏi cửa sổ phát
+private const val ERR_UNSPECIFIED_IO = 2000
+private const val ERR_NET_FAILED = 2001
+private const val ERR_NET_TIMEOUT = 2002
+private const val ERR_CONTAINER_MALFORMED = 3001            // đọc sai định dạng (vd HLS không có đuôi .m3u8)
+private const val ERR_CONTAINER_UNSUPPORTED = 3003
 
 @OptIn(UnstableApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -53,7 +66,6 @@ fun PlayerScreen(
     onDeleteLink: (String) -> Unit,
     onCurrent: (Channel) -> Unit,
     onResult: (Channel, Boolean, String?) -> Unit,
-    onExit: () -> Unit,
 ) {
     val ctx = LocalContext.current
     var list by remember { mutableStateOf(channels) }
@@ -77,13 +89,20 @@ fun PlayerScreen(
     var forcedLink by remember { mutableStateOf<Pair<String, String>?>(null) }   // (id kênh, link) người dùng vừa chọn
     var longShown by remember { mutableStateOf(false) }   // lần giữ OK hiện tại đã mở hộp chọn link
     val focus = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    val triedHls = remember { HashSet<String>() }            // link đã thử đọc lại dạng HLS (đường dẫn không có đuôi .m3u8)
+    val triedUa = remember { HashSet<String>() }             // link đã thử lại bằng User-Agent khác (bị chặn 401/403)
+    val netRetries = remember { HashMap<String, Int>() }     // link -> số lần tự thử lại vì lỗi mạng tạm thời
+    val autoRetries = remember { HashMap<String, Int>() }    // kênh -> số lần tự thử lại sau khi báo "chưa mở được"
 
-    val player = remember {
-        val http = DefaultHttpDataSource.Factory()
+    val http = remember {
+        DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(10_000)
             .setReadTimeoutMs(15_000)
-            .setUserAgent("Mozilla/5.0 (Linux; Android) XemTVLite/1.0")
+            .setUserAgent(UA_APP)
+    }
+    val player = remember {
         // Bộ đệm nhỏ -> vào kênh nhanh, ít tốn RAM.
         val load = DefaultLoadControl.Builder()
             .setBufferDurationsMs(8_000, 30_000, 1_500, 3_000)
@@ -112,7 +131,9 @@ fun PlayerScreen(
     fun play(url: String) {
         runCatching {
             player.volume = 0f
-            player.setMediaItem(MediaItem.fromUri(url))
+            http.setUserAgent(if (url in triedUa) UA_VLC else UA_APP)
+            val item = if (url in triedHls) MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8).build() else MediaItem.fromUri(url)
+            player.setMediaItem(item)
             player.prepare()
             player.playWhenReady = true
         }
@@ -167,10 +188,55 @@ fun PlayerScreen(
 
     DisposableEffect(player) {
         val l = object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) { tryNext("Link lỗi") }
+            override fun onPlayerError(error: PlaybackException) {
+                val u = candidates.getOrNull(urlIdx)
+                val chId = list[index].id
+                if (u != null) {
+                    val code = error.errorCode
+                    val cause = error.cause
+                    val httpCode = if (cause is HttpDataSource.InvalidResponseCodeException) cause.responseCode else 0
+                    // 1) Đường dẫn không có đuôi .m3u8 nhưng thật ra là HLS: thử đọc lại dạng HLS
+                    if ((code == ERR_CONTAINER_UNSUPPORTED || code == ERR_CONTAINER_MALFORMED) && triedHls.add(u)) {
+                        status = "Đang thử đọc dạng HLS…"
+                        runCatching { player.stop() }
+                        play(u)
+                        return
+                    }
+                    // 2) Bị chặn (401/403...): thử lại một lần với User-Agent của trình phát quen thuộc
+                    if ((httpCode == 401 || httpCode == 403 || httpCode == 406) && triedUa.add(u)) {
+                        status = "Máy chủ từ chối, đang thử lại…"
+                        runCatching { player.stop() }
+                        play(u)
+                        return
+                    }
+                    // 3) Lỗi mạng tạm thời / luồng trực tiếp trôi khỏi cửa sổ phát: thử lại đúng link đó (tối đa 3 lần) rồi mới bỏ
+                    val transient = code == ERR_BEHIND_LIVE || code == ERR_NET_FAILED || code == ERR_NET_TIMEOUT ||
+                        code == ERR_UNSPECIFIED_IO || httpCode >= 500
+                    val n = netRetries[u] ?: 0
+                    if (transient && n < 3) {
+                        netRetries[u] = n + 1
+                        status = "Mạng chập chờn, đang thử lại (${n + 1}/3)…"
+                        scope.launch {
+                            delay(if (code == ERR_BEHIND_LIVE) 300L else 1_200L * (n + 1))
+                            if (candidates.getOrNull(urlIdx) == u && list[index].id == chId) {
+                                runCatching {
+                                    if (code == ERR_BEHIND_LIVE) player.seekToDefaultPosition()
+                                    player.prepare()
+                                }
+                            }
+                        }
+                        return
+                    }
+                }
+                tryNext("Link lỗi")
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_READY -> { status = null; readyTick++; rampTick++ }
+                    Player.STATE_READY -> {
+                        status = null; readyTick++; rampTick++
+                        retryCh = ""                                    // đã phát được: lần lỗi sau lại được đo lại 1 lượt
+                        candidates.getOrNull(urlIdx)?.let { netRetries.remove(it) }
+                    }
                     Player.STATE_BUFFERING -> if (status == null) status = "Đang đệm…"
                     else -> {}
                 }
@@ -180,23 +246,47 @@ fun PlayerScreen(
         onDispose { player.removeListener(l); runCatching { player.release() } }
     }
 
-    // Đã phát được 2,5 giây: phải có luồng âm thanh dùng được, nếu không coi là kênh chết
+    // Đã phát được 4 giây: nên có cả hình và tiếng; thiếu thì đổi sang link dự phòng (nếu còn)
     LaunchedEffect(readyTick) {
         if (readyTick == 0) return@LaunchedEffect
         val ch = list[index]
         val url = candidates.getOrNull(urlIdx)
-        delay(2_500)
+        delay(4_000)
         if (list[index].id != ch.id || candidates.getOrNull(urlIdx) != url) return@LaunchedEffect
         if (player.playbackState != Player.STATE_READY) return@LaunchedEffect
-        val hasAudio = player.currentTracks.groups.any { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
-        val hasVideo = player.currentTracks.groups.any { it.type == C.TRACK_TYPE_VIDEO && it.isSupported }
+        // Track đang được phát (isSelected), không đòi "đủ khả năng tuyệt đối" như isSupported (thiết bị yếu vẫn phát được)
+        val hasAudio = player.currentTracks.groups.any { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
+        val hasVideo = player.currentTracks.groups.any { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
+        // Còn link dự phòng mới đổi link; đã là link cuối thì GIỮ phát (có hình không tiếng còn hơn báo không mở được)
+        val more = urlIdx + 1 < candidates.size
         when {
-            !hasVideo -> tryNext("Chỉ có âm thanh, không có hình")
-            !hasAudio -> tryNext("Không có tiếng")
-            url != null -> {
+            !hasVideo && more -> tryNext("Chỉ có âm thanh, không có hình")
+            !hasAudio && more -> tryNext("Không có tiếng")
+            url != null && hasVideo && hasAudio -> {
+                autoRetries.remove(ch.id)
                 onResult(ch, true, url)
                 onHeight(url, player.videoSize.height)      // độ phân giải thực tế của link đang phát
             }
+            else -> {
+                status = if (!hasAudio) "Kênh này không có tiếng (hoặc thiết bị không giải mã được âm thanh)" else "Kênh này chỉ có âm thanh"
+                delay(6_000)
+                if (list[index].id == ch.id) status = null
+            }
+        }
+    }
+
+    // Báo "chưa mở được" nhưng kênh thường chỉ chập chờn: tự thử lại tối đa 3 lần (sau 6 s, rồi 15 s, 15 s) khi vẫn ở kênh đó
+    LaunchedEffect(failed, index) {
+        if (!failed) return@LaunchedEffect
+        val ch = list[index]
+        val n = autoRetries[ch.id] ?: 0
+        if (n >= 3) return@LaunchedEffect
+        delay(if (n == 0) 6_000L else 15_000L)
+        if (failed && list[index].id == ch.id) {
+            autoRetries[ch.id] = n + 1
+            retryCh = ""
+            status = "Đang tự thử lại (lần ${n + 1}/3)…"
+            reloadTick++
         }
     }
 
@@ -276,7 +366,9 @@ fun PlayerScreen(
                     Key.DirectionUp, Key.ChannelUp, Key.PageUp -> { go(1); true }
                     Key.DirectionDown, Key.ChannelDown, Key.PageDown -> { go(-1); true }
                     Key.Enter, Key.NumPadEnter, Key.DirectionCenter ->
-                        if (numBuf.isNotEmpty()) { jumpTo(numBuf.toInt()); numBuf = ""; true } else false
+                        if (numBuf.isNotEmpty()) { jumpTo(numBuf.toInt()); numBuf = ""; true }
+                        else if (failed) { retryCh = ""; autoRetries.remove(list[index].id); reloadTick++; true }     // OK = thử lại ngay
+                        else false
                     else -> false
                 }
             }
@@ -325,7 +417,7 @@ fun PlayerScreen(
             ) {
                 Text("Chưa mở được kênh này", fontSize = 28.sp, color = Color.White)
                 Text("Kênh vẫn được giữ trong danh sách (có thể chỉ tạm thời bị lỗi).", fontSize = 16.sp, color = Color(0xFFCCCCCC))
-                Text("Bấm ↑/↓ để đổi kênh, Back để quay lại. Thử lại sau bằng Cài đặt → Thử lại các kênh đang chết.", fontSize = 16.sp, color = Color(0xFFFFC857))
+                Text("Bấm OK để thử lại ngay (app cũng tự thử lại vài lần), ↑/↓ để đổi kênh, Back để quay lại.", fontSize = 16.sp, color = Color(0xFFFFC857))
             }
         }
         if (numBuf.isNotEmpty() || numMsg != null) {

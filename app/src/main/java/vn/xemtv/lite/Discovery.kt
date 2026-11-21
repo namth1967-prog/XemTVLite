@@ -25,7 +25,7 @@ class Discovery(private val token: String) {
     private class Stop : Exception()
     private class Res(val code: Int, val remaining: String?, val retry: String?, val body: String)
 
-    private val client = OkHttpClient.Builder()
+    private val client = Http.base.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
@@ -113,7 +113,7 @@ class Discovery(private val token: String) {
 /** Kiểm tra token GitHub bằng cách hỏi hạn mức (rate_limit). Trả về câu thông báo cho người dùng. */
 suspend fun checkGithubToken(token: String): String = withContext(Dispatchers.IO) {
     try {
-        val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
+        val client = Http.base.newBuilder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
         val b = Request.Builder().url("https://api.github.com/rate_limit").header("Accept", "application/vnd.github+json")
         if (token.isNotEmpty()) b.header("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { r ->
